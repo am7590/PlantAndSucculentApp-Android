@@ -1,6 +1,9 @@
+import com.google.protobuf.gradle.*
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    alias(libs.plugins.protobuf)
 }
 
 android {
@@ -72,4 +75,24 @@ dependencies {
 
     // Koin
     implementation(libs.bundles.koin)
+
+    // gRPC
+    implementation(libs.grpc.okhttp)
+    implementation(libs.protobuf.java)
+    implementation(libs.grpc.stub)
+    implementation(libs.javax.annotation)
+    implementation(libs.protobuf.kotlin)
+}
+
+protobuf {
+    protoc {
+        artifact = libs.protoc.get().toString()
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                id("java")
+            }
+        }
+    }
 }
