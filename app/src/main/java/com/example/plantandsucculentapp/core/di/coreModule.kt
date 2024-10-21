@@ -1,8 +1,8 @@
 package com.example.plantandsucculentapp.core.di
 
 import android.content.Context
-import com.example.plantandsucculentapp.CoreRepositoryImpl
-import com.example.plantandsucculentapp.Repository
+import com.example.plantandsucculentapp.core.data.CoreRepositoryImpl
+import com.example.plantandsucculentapp.PlantsFeature.domain.Repository
 import com.example.plantandsucculentapp.core.presentation.MainViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel

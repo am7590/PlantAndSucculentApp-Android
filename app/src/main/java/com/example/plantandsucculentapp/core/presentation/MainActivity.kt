@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.plantandsucculentapp.PlantsFeature.presentation.PlantsScreen
 import com.example.plantandsucculentapp.core.presentation.ui.theme.PlantAndSucculentAppTheme
 import org.koin.androidx.compose.koinViewModel
 
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlantAndSucculentAppTheme {
                 val mainViewModel: MainViewModel = koinViewModel()
-
+                PlantsScreen()
             }
         }
     }

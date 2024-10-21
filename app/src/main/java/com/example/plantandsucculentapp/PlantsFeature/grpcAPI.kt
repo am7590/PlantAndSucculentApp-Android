@@ -1,4 +1,4 @@
-package com.example.plantandsucculentapp
+package com.example.plantandsucculentapp.PlantsFeature
 
 import retrofit2.http.GET
 

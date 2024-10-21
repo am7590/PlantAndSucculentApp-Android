@@ -2,7 +2,7 @@ package com.example.plantandsucculentapp.core.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.plantandsucculentapp.Repository
+import com.example.plantandsucculentapp.PlantsFeature.domain.Repository
 import kotlinx.coroutines.launch
 
 class MainViewModel(
