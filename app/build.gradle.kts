@@ -53,7 +53,6 @@ android {
 }
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -71,12 +70,13 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     // Retrofit
-    implementation(libs.bundles.rerofit)
+    implementation(libs.bundles.retrofit)
 
     // Koin
     implementation(libs.bundles.koin)
 
     // gRPC
+    implementation(libs.grpc.protobuf)
     implementation(libs.grpc.okhttp)
     implementation(libs.protobuf.java)
     implementation(libs.grpc.stub)
@@ -86,12 +86,20 @@ dependencies {
 
 protobuf {
     protoc {
-        artifact = libs.protoc.get().toString()
+        artifact = "com.google.protobuf:protoc:3.24.2" // Or your specified version
+    }
+    plugins {
+        id("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.56.0" // Or your specified version
+        }
     }
     generateProtoTasks {
         all().forEach { task ->
+            task.plugins {
+                id("grpc") // Ensures gRPC service stubs are generated
+            }
             task.builtins {
-                id("java")
+                id("java") // Generates Java classes for protobuf messages
             }
         }
     }
