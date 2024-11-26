@@ -4,16 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.plantandsucculentapp.PlantsFeature.presentation.PlantsScreen
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.example.plantandsucculentapp.core.network.MockGrpcClient
+import com.example.plantandsucculentapp.plants.presentation.PlantsScreen
 import com.example.plantandsucculentapp.core.presentation.ui.theme.PlantAndSucculentAppTheme
+import com.example.plantandsucculentapp.plants.presentation.NewPlantScreen
+import com.example.plantandsucculentapp.plants.presentation.PlantDetailScreen
 import org.koin.androidx.compose.koinViewModel
+import plant.PlantOuterClass
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,8 +23,48 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlantAndSucculentAppTheme {
                 val mainViewModel: MainViewModel = koinViewModel()
-                PlantsScreen()
+                PlantApp()
             }
+        }
+    }
+}
+
+@Composable
+fun PlantApp() {
+    val navController = rememberNavController()
+    val mockClient = MockGrpcClient()
+
+    NavHost(navController, startDestination = "plants") {
+        composable("plants") {
+            val plants = mockClient.getWatered("user123").plantsList
+            PlantsScreen(
+                onAddPlant = { navController.navigate("newPlant") },
+                onPlantSelected = { sku -> navController.navigate("plantDetail/$sku") },
+//                plants = plants
+            )
+        }
+        composable("newPlant") {
+            NewPlantScreen(
+                onCreatePlant = { userId, plantInfo ->
+                    mockClient.addPlant(userId, PlantOuterClass.Plant.newBuilder().setInformation(plantInfo).build())
+                    navController.popBackStack()
+                },
+                onCancel = { navController.popBackStack() }
+            )
+        }
+        composable("plantDetail/{sku}") { backStackEntry ->
+            val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
+            val plant = mockClient.getPlant("user123", sku)
+            PlantDetailScreen(
+                plant = plant,
+                onWaterPlant = {
+                    mockClient.updatePlant("user123", plant.identifier, plant.information.toBuilder().setLastWatered(System.currentTimeMillis()).build())
+                },
+                onHealthCheck = {
+                    mockClient.healthCheckRequest("user123", sku)
+                },
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }
