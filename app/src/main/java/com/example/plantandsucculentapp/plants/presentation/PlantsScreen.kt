@@ -99,8 +99,8 @@ fun PlantListItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), CircleShape)
+                    .size(100.dp)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), RoundedCornerShape(size = 12.dp))
             )
 
             Spacer(modifier = Modifier.width(16.dp))
