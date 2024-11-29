@@ -30,8 +30,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.compose.rememberAsyncImagePainter
 import plant.PlantOuterClass
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -50,9 +53,14 @@ fun NewPlantScreen(
     var wateringSchedule by remember { mutableStateOf("As needed") }
     var expanded by remember { mutableStateOf(false) }
     var photoUri by remember { mutableStateOf("") }
+    var bitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     val context = LocalContext.current
 
-    // Date Picker Setup
+    // this disables the 'save' button if all fields aren't filled out
+    val isFormComplete = name.isNotEmpty() && lastWatered.isNotEmpty() &&
+            (photoUri.isNotEmpty() || bitmap != null)
+
+    // date picker for watering reminders
     val calendar = Calendar.getInstance()
     val datePickerDialog = android.app.DatePickerDialog(
         context,
@@ -66,16 +74,14 @@ fun NewPlantScreen(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-    // Image Pickers
+    // select image from gallery or launcher
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri -> if (uri != null) photoUri = uri.toString() }
     )
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview(),
-        onResult = { bitmap ->
-            // TODO: Display selected image below photo buttons
-        }
+        onResult = { bitmapResult -> if (bitmapResult != null) bitmap = bitmapResult }
     )
 
     Scaffold(
@@ -88,16 +94,23 @@ fun NewPlantScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        onCreatePlant(
-                            UUID.randomUUID().toString(),
-                            PlantOuterClass.PlantInformation.newBuilder()
-                                .setName(name)
-                                .setLastWatered(calendar.timeInMillis)
-                                .build()
+                    IconButton(
+                        onClick = {
+                            onCreatePlant(
+                                UUID.randomUUID().toString(),
+                                PlantOuterClass.PlantInformation.newBuilder()
+                                    .setName(name)
+                                    .setLastWatered(calendar.timeInMillis)
+                                    .build()
+                            )
+                        },
+                        enabled = isFormComplete
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Create",
+                            modifier = Modifier.alpha(if (isFormComplete) 1f else 0.4f)
                         )
-                    }) {
-                        Icon(imageVector = Icons.Default.Check, contentDescription = "Create")
                     }
                 }
             )
@@ -175,6 +188,26 @@ fun NewPlantScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Take a Photo")
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Display selected image
+            if (photoUri.isNotEmpty()) {
+                androidx.compose.foundation.Image(
+                    painter = rememberAsyncImagePainter(model = photoUri),
+                    contentDescription = "Selected Image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
+            } else if (bitmap != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = bitmap!!.asImageBitmap(),
+                    contentDescription = "Captured Image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
             }
         }
     }

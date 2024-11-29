@@ -83,6 +83,9 @@ dependencies {
     implementation(libs.grpc.stub)
     implementation(libs.javax.annotation)
     implementation(libs.protobuf.kotlin)
+
+    // photo stuff
+    implementation(libs.coil.compose)
 }
 
 protobuf {
