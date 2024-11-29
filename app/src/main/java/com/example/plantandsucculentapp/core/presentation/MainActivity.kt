@@ -37,28 +37,45 @@ fun PlantApp() {
     NavHost(navController, startDestination = "plants") {
         composable("plants") {
             val plants = mockClient.getWatered("user123").plantsList
+
             PlantsScreen(
-                onAddPlant = { navController.navigate("newPlant") },
-                onPlantSelected = { sku -> navController.navigate("plantDetail/$sku") },
-//                plants = plants
+                plants = plants,
+                onAddPlantClick = { navController.navigate("newPlant") },
+                onPlantClick = { plant ->
+                    navController.navigate("plantDetail/${plant.identifier}")
+                }
             )
         }
+
+        // New Plant Screen
         composable("newPlant") {
             NewPlantScreen(
                 onCreatePlant = { userId, plantInfo ->
-                    mockClient.addPlant(userId, PlantOuterClass.Plant.newBuilder().setInformation(plantInfo).build())
+                    mockClient.addPlant(
+                        userId,
+                        PlantOuterClass.Plant.newBuilder().setInformation(plantInfo).build()
+                    )
                     navController.popBackStack()
                 },
                 onCancel = { navController.popBackStack() }
             )
         }
+
+        // Plant Detail Screen
         composable("plantDetail/{sku}") { backStackEntry ->
             val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
             val plant = mockClient.getPlant("user123", sku)
+
             PlantDetailScreen(
                 plant = plant,
                 onWaterPlant = {
-                    mockClient.updatePlant("user123", plant.identifier, plant.information.toBuilder().setLastWatered(System.currentTimeMillis()).build())
+                    mockClient.updatePlant(
+                        "user123",
+                        plant.identifier,
+                        plant.information.toBuilder()
+                            .setLastWatered(System.currentTimeMillis())
+                            .build()
+                    )
                 },
                 onHealthCheck = {
                     mockClient.healthCheckRequest("user123", sku)
