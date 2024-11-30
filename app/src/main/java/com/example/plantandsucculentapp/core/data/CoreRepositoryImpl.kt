@@ -14,4 +14,16 @@ class CoreRepositoryImpl(
     override suspend fun getWateredPlants(): List<PlantOuterClass.Plant> {
         return mockGrpcClient.getWatered("user123").plantsList
     }
+
+    override suspend fun addPlant(userId: String, plant: PlantOuterClass.Plant): String {
+        TODO("Not yet implemented")
+    }
+
+    override suspend fun updatePlant(
+        userId: String,
+        identifier: PlantOuterClass.PlantIdentifier,
+        information: PlantOuterClass.PlantInformation
+    ): String {
+        TODO("Not yet implemented")
+    }
 }

@@ -14,6 +14,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -22,11 +23,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.android.identity.util.UUID
 import com.example.plantandsucculentapp.core.network.MockGrpcClient
 import com.example.plantandsucculentapp.plants.presentation.PlantsScreen
 import com.example.plantandsucculentapp.core.presentation.ui.theme.PlantAndSucculentAppTheme
 import com.example.plantandsucculentapp.plants.presentation.NewPlantScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantDetailScreen
+import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import com.example.plantandsucculentapp.plants.trends.TrendsScreen
 import org.koin.androidx.compose.koinViewModel
 import plant.PlantOuterClass
@@ -37,18 +40,17 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             PlantAndSucculentAppTheme {
-                val mainViewModel: MainViewModel = koinViewModel()
-                PlantApp()
+                val plantsViewModel: PlantsViewModel = koinViewModel()
+                PlantApp(plantsViewModel)
             }
         }
     }
 }
 
 @Composable
-fun PlantApp() {
+fun PlantApp(plantsViewModel: PlantsViewModel) {
     val navController = rememberNavController()
-    val mockClient = MockGrpcClient()
-    val plants = mockClient.getWatered("user123").plantsList
+    val plants by plantsViewModel.plants.collectAsState()
 
     val tabs = listOf(
         TabItem("Plants", Icons.Default.Favorite, "plants"),
@@ -64,23 +66,25 @@ fun PlantApp() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("plants") {
-                val plants = mockClient.getWatered("user123").plantsList
-
                 PlantsScreen(
                     plants = plants,
                     onAddPlantClick = { navController.navigate("newPlant") },
                     onPlantClick = { plant ->
-                        navController.navigate("plantDetail/${plant.identifier}")
+                        navController.navigate("plantDetail/${plant.identifier.sku}")
                     }
                 )
             }
             composable("newPlant") {
                 NewPlantScreen(
                     onCreatePlant = { userId, plantInfo ->
-                        mockClient.addPlant(
-                            userId,
-                            PlantOuterClass.Plant.newBuilder().setInformation(plantInfo).build()
-                        )
+                        val newPlant = PlantOuterClass.Plant.newBuilder()
+                            .setIdentifier(
+                                PlantOuterClass.PlantIdentifier.newBuilder().setSku(UUID.randomUUID().toString()).build()
+                            )
+                            .setInformation(plantInfo)
+                            .build()
+
+                        plantsViewModel.addPlant(userId, newPlant)
                         navController.popBackStack()
                     },
                     onCancel = { navController.popBackStack() }
@@ -88,24 +92,27 @@ fun PlantApp() {
             }
             composable("plantDetail/{sku}") { backStackEntry ->
                 val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
-                val plant = mockClient.getPlant("user123", sku)
+                val plant = plants.find { it.identifier.sku == sku }
 
-                PlantDetailScreen(
-                    plant = plant,
-                    onWaterPlant = {
-                        mockClient.updatePlant(
-                            "user123",
-                            plant.identifier,
-                            plant.information.toBuilder()
-                                .setLastWatered(System.currentTimeMillis())
+                if (plant != null) {
+                    PlantDetailScreen(
+                        plant = plant,
+                        onWaterPlant = {
+                            val updatedPlant = plant.toBuilder()
+                                .setInformation(
+                                    plant.information.toBuilder()
+                                        .setLastWatered(System.currentTimeMillis())
+                                        .build()
+                                )
                                 .build()
-                        )
-                    },
-                    onHealthCheck = {
-                        mockClient.healthCheckRequest("user123", sku)
-                    },
-                    onBack = { navController.popBackStack() }
-                )
+                            plantsViewModel.updatePlant(updatedPlant.identifier, updatedPlant.information) // Update plant in ViewModel
+                        },
+                        onHealthCheck = {
+                            // TODO: implement this detail screen
+                        },
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
             composable("trends") {
                 TrendsScreen(plants = plants)
@@ -113,6 +120,7 @@ fun PlantApp() {
         }
     }
 }
+
 
 @Composable
 fun BottomAppBar(navController: NavController, tabs: List<TabItem>) {
