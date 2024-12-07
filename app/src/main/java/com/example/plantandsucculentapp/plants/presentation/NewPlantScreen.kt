@@ -122,7 +122,7 @@ fun NewPlantScreen(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("Plant Name") },
+                label = { Text("New Plant") },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(16.dp))
