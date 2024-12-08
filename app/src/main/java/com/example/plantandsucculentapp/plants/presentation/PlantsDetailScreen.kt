@@ -154,28 +154,6 @@ fun PlantsDetailScreen(
                 }
             }
 
-            // Photo Actions
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = { galleryLauncher.launch("image/*") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Gallery")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = { cameraLauncher.launch(null) },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Camera")
-                }
-            }
-
             // Action Buttons
             Row(
                 modifier = Modifier
@@ -184,7 +162,10 @@ fun PlantsDetailScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(
-                    onClick = onWaterPlant,
+                    onClick = {
+                        cameraLauncher.launch(null)
+                        onWaterPlant()
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Water Plant")
