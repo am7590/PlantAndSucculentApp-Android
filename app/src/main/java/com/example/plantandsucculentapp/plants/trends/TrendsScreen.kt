@@ -7,16 +7,46 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
+import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
+import com.example.plantandsucculentapp.core.presentation.util.UiState
+import com.example.plantandsucculentapp.plants.presentation.PlantsContent
+import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import plant.PlantOuterClass
 
 @Composable
-fun TrendsScreen(plants: List<PlantOuterClass.Plant>) {
+fun TrendsScreen(
+    viewModel: PlantsViewModel,
+) {
+    val plantsState by viewModel.plantsState.collectAsState()
+
+    when (plantsState) {
+        is UiState.Loading -> {
+            LoadingScreen()
+        }
+        is UiState.Success -> {
+            val plants = (plantsState as UiState.Success).data
+            TrendsContent(plants = plants)
+        }
+        is UiState.Error -> {
+            ErrorScreen(
+                message = (plantsState as UiState.Error).message,
+                onRetry = { viewModel.fetchPlantList() }
+            )
+        }
+    }
+}
+
+@Composable
+fun TrendsContent(plants: List<PlantOuterClass.Plant>) {
     Column(
         modifier = Modifier
             .fillMaxSize()

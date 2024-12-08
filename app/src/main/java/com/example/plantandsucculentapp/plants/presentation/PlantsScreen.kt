@@ -27,14 +27,51 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import plant.PlantOuterClass
+import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
+import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
+import com.example.plantandsucculentapp.core.presentation.util.UiState
+
+@Composable
+fun PlantsScreen(
+    viewModel: PlantsViewModel,
+    onAddPlantClick: () -> Unit,
+    onPlantClick: (PlantOuterClass.Plant) -> Unit
+) {
+    val plantsState by viewModel.plantsState.collectAsState()
+
+    when (plantsState) {
+        is UiState.Loading -> {
+            LoadingScreen()
+        }
+        is UiState.Success -> {
+            val plants = (plantsState as UiState.Success).data
+            PlantsContent(
+                plants = plants,
+                onAddPlantClick = {
+                    onAddPlantClick()
+                }) {
+                onPlantClick(it)
+            }
+
+        }
+        is UiState.Error -> {
+            ErrorScreen(
+                message = (plantsState as UiState.Error).message,
+                onRetry = { viewModel.fetchPlantList() }
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlantsScreen(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Unit, onPlantClick: (PlantOuterClass.Plant) -> Unit) {
+fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Unit, onPlantClick: (PlantOuterClass.Plant) -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -99,7 +136,10 @@ fun PlantListItem(
             Box(
                 modifier = Modifier
                     .size(100.dp)
-                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f), RoundedCornerShape(size = 12.dp))
+                    .background(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        RoundedCornerShape(size = 12.dp)
+                    )
             )
 
             Spacer(modifier = Modifier.width(16.dp))

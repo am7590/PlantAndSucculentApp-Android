@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,8 +26,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.android.identity.util.UUID
 import com.example.plantandsucculentapp.core.network.MockGrpcClient
+import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
+import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsScreen
 import com.example.plantandsucculentapp.core.presentation.ui.theme.PlantAndSucculentAppTheme
+import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.presentation.NewPlantScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantDetailScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
@@ -50,7 +54,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun PlantApp(plantsViewModel: PlantsViewModel) {
     val navController = rememberNavController()
-    val plants by plantsViewModel.plants.collectAsState()
 
     val tabs = listOf(
         TabItem("Plants", Icons.Default.Favorite, "plants"),
@@ -67,7 +70,7 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
         ) {
             composable("plants") {
                 PlantsScreen(
-                    plants = plants,
+                    viewModel = plantsViewModel,
                     onAddPlantClick = { navController.navigate("newPlant") },
                     onPlantClick = { plant ->
                         navController.navigate("plantDetail/${plant.identifier.sku}")
@@ -92,30 +95,44 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
             }
             composable("plantDetail/{sku}") { backStackEntry ->
                 val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
-                val plant = plants.find { it.identifier.sku == sku }
 
-                if (plant != null) {
-                    PlantDetailScreen(
-                        plant = plant,
-                        onWaterPlant = {
-                            val updatedPlant = plant.toBuilder()
-                                .setInformation(
-                                    plant.information.toBuilder()
-                                        .setLastWatered(System.currentTimeMillis())
+                when (val currentState = plantsViewModel.plantsState.collectAsState().value) {
+                    is UiState.Success -> {
+                        val plant = currentState.data.find { it.identifier.sku == sku }
+                        if (plant != null) {
+                            PlantDetailScreen(
+                                plant = plant,
+                                onWaterPlant = {
+                                    val updatedPlant = plant.toBuilder()
+                                        .setInformation(
+                                            plant.information.toBuilder()
+                                                .setLastWatered(System.currentTimeMillis())
+                                                .build()
+                                        )
                                         .build()
-                                )
-                                .build()
-                            plantsViewModel.updatePlant(updatedPlant.identifier, updatedPlant.information) // Update plant in ViewModel
-                        },
-                        onHealthCheck = {
-                            // TODO: implement this detail screen
-                        },
-                        onBack = { navController.popBackStack() }
-                    )
+                                    // Add updatePlant to ViewModel first
+                                    plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
+                                },
+                                onHealthCheck = {
+                                    // TODO: implement this detail screen
+                                },
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                    }
+                    is UiState.Loading -> {
+                        LoadingScreen()
+                    }
+                    is UiState.Error -> {
+                        ErrorScreen(
+                            message = currentState.message,
+                            onRetry = { plantsViewModel.fetchPlantList() }
+                        )
+                    }
                 }
             }
             composable("trends") {
-                TrendsScreen(plants = plants)
+                TrendsScreen(viewModel = plantsViewModel)
             }
         }
     }
