@@ -1,6 +1,8 @@
-package com.example.plantandsucculentapp.plants.presentation
-
-import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,14 +15,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,28 +29,65 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import plant.PlantOuterClass
+import java.util.UUID
 
-@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun PlantDetailScreen(
+fun PlantsDetailScreen(
     plant: PlantOuterClass.Plant,
     onWaterPlant: () -> Unit,
     onHealthCheck: () -> Unit,
+    onAddPhoto: (String) -> Unit,
     onBack: () -> Unit
 ) {
+    var photoUri by remember { mutableStateOf("") }
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+    val context = LocalContext.current
+
+    // Photo capture launchers
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            if (uri != null) {
+                photoUri = uri.toString()
+                // Save and update the plant
+                onAddPhoto(photoUri)
+            }
+        }
+    )
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview(),
+        onResult = { bitmapResult ->
+            if (bitmapResult != null) {
+                bitmap = bitmapResult
+                // Save bitmap to internal storage and get URI
+                val fileName = "plant_${UUID.randomUUID()}.jpg"
+                context.openFileOutput(fileName, Context.MODE_PRIVATE).use { stream ->
+                    bitmapResult.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                }
+                val photoUrl = "file://${context.filesDir}/$fileName"
+                onAddPhoto(photoUrl)
+            }
+        }
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = plant.information.name, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(text = plant.information.name) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -63,91 +100,102 @@ fun PlantDetailScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Plant Image
-            if (plant.information.photoUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = plant.information.photoUrl,
-                    contentDescription = "Plant photo",
+            // Photo carousel
+            if (plant.information.photosList.isNotEmpty()) {
+                val pagerState = rememberPagerState(pageCount = { plant.information.photosList.size })
+
+                HorizontalPager(
+                    state = pagerState,
                     modifier = Modifier
-                        .size(200.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
-                )
+                        .fillMaxWidth()
+                        .height(300.dp)
+                ) { page ->
+                    val photo = plant.information.photosList[page]
+                    AsyncImage(
+                        model = photo.url,
+                        contentDescription = "Plant photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                // Page indicator dots
+                Row(
+                    Modifier
+                        .height(50.dp)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    repeat(pagerState.pageCount) { iteration ->
+                        val color = if (pagerState.currentPage == iteration) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .padding(2.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                                .size(8.dp)
+                        )
+                    }
+                }
             } else {
                 Box(
                     modifier = Modifier
-                        .size(200.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.LightGray),
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No Image", color = Color.Gray)
+                    Text("No photos yet")
+                }
+            }
+
+            // Photo Actions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Gallery")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { cameraLauncher.launch(null) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Camera")
                 }
             }
 
             // Action Buttons
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 Button(
                     onClick = onWaterPlant,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.DateRange, contentDescription = "Water")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Water")
+                    Text("Water Plant")
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = onHealthCheck,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Info, contentDescription = "Health Check")
-                    Spacer(modifier = Modifier.width(4.dp))
                     Text("Health Check")
                 }
-            }
-
-            // Additional Details
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    "Species ID",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    plant.information.identifiedSpeciesName,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Divider()
-
-                Text(
-                    "Watering",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    "Last Watered: ${plant.information.lastWatered}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
             }
         }
     }

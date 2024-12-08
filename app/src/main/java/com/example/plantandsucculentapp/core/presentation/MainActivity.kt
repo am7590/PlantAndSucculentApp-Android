@@ -1,5 +1,6 @@
 package com.example.plantandsucculentapp.core.presentation
 
+import PlantsDetailScreen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -18,21 +19,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.android.identity.util.UUID
-import com.example.plantandsucculentapp.core.network.MockGrpcClient
 import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
 import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsScreen
 import com.example.plantandsucculentapp.core.presentation.ui.theme.PlantAndSucculentAppTheme
 import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.presentation.NewPlantScreen
-import com.example.plantandsucculentapp.plants.presentation.PlantDetailScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import com.example.plantandsucculentapp.plants.trends.TrendsScreen
 import org.koin.androidx.compose.koinViewModel
@@ -100,7 +99,7 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
                     is UiState.Success -> {
                         val plant = currentState.data.find { it.identifier.sku == sku }
                         if (plant != null) {
-                            PlantDetailScreen(
+                            PlantsDetailScreen(
                                 plant = plant,
                                 onWaterPlant = {
                                     val updatedPlant = plant.toBuilder()
@@ -110,11 +109,26 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
                                                 .build()
                                         )
                                         .build()
-                                    // Add updatePlant to ViewModel first
                                     plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
                                 onHealthCheck = {
-                                    // TODO: implement this detail screen
+                                    // TODO: implement health check
+                                },
+                                onAddPhoto = { photoUrl ->
+                                    val updatedPlant = plant.toBuilder()
+                                        .setInformation(
+                                            plant.information.toBuilder()
+                                                .addPhotos(
+                                                    PlantOuterClass.PhotoEntry.newBuilder()
+                                                        .setUrl(photoUrl)
+                                                        .setTimestamp(System.currentTimeMillis())
+                                                        .setNote("Plant photo")
+                                                        .build()
+                                                )
+                                                .build()
+                                        )
+                                        .build()
+                                    plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
                                 onBack = { navController.popBackStack() }
                             )
@@ -137,7 +151,6 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
         }
     }
 }
-
 
 @Composable
 fun BottomAppBar(navController: NavController, tabs: List<TabItem>) {

@@ -69,7 +69,13 @@ message PlantInformation {
     optional int64 lastHealthCheck = 3;
     optional int64 lastIdentification = 4;
     optional string identifiedSpeciesName = 5;
-    optional string photoUrl = 6;
+    repeated PhotoEntry photos = 6;
+}
+
+message PhotoEntry {
+    string url = 1;
+    int64 timestamp = 2;
+    optional string note = 3;
 }
 
 message PlantUpdateRequest {

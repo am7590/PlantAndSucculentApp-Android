@@ -31,11 +31,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import plant.PlantOuterClass
 import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
 import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
 import com.example.plantandsucculentapp.core.presentation.util.UiState
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 @Composable
 fun PlantsScreen(
@@ -103,6 +106,7 @@ fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Un
                 PlantListItem(
                     name = plant.information.name,
                     lastWatered = plant.information.lastWatered,
+                    photoUrl = plant.information.photosList.maxByOrNull { it.timestamp }?.url,
                     onItemClick = { onPlantClick(plant) }
                 )
             }
@@ -114,6 +118,7 @@ fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Un
 fun PlantListItem(
     name: String,
     lastWatered: Long,
+    photoUrl: String?,
     onItemClick: () -> Unit
 ) {
     Card(
@@ -133,14 +138,25 @@ fun PlantListItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(100.dp)
-                    .background(
-                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                        RoundedCornerShape(size = 12.dp)
-                    )
-            )
+            if (photoUrl != null) {
+                AsyncImage(
+                    model = photoUrl,
+                    contentDescription = "Plant photo",
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .background(
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                            RoundedCornerShape(size = 12.dp)
+                        )
+                )
+            }
 
             Spacer(modifier = Modifier.width(16.dp))
 

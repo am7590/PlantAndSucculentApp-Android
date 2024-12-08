@@ -101,12 +101,24 @@ fun NewPlantScreen(
             else -> ""
         }
 
+        // Create a PhotoEntry for the initial photo if we have one
+        val initialPhoto = if (photoUrlToSave.isNotEmpty()) {
+            PlantOuterClass.PhotoEntry.newBuilder()
+                .setUrl(photoUrlToSave)
+                .setTimestamp(System.currentTimeMillis())
+                .setNote("Initial photo")
+                .build()
+        } else null
+
         onCreatePlant(
             UUID.randomUUID().toString(),
             PlantOuterClass.PlantInformation.newBuilder()
                 .setName(name)
                 .setLastWatered(calendar.timeInMillis)
-                .setPhotoUrl(photoUrlToSave)  // Add the photo URL
+                .apply {
+                    // Add the photo only if we have one
+                    initialPhoto?.let { addPhotos(it) }
+                }
                 .build()
         )
     }
