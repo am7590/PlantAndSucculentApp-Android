@@ -33,7 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import plant.PlantOuterClass
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -66,15 +68,25 @@ fun PlantDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Plant Image
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.LightGray),
-                contentAlignment = Alignment.Center
-            ) {
-                // Replace this with a real image if you have one
-                Text("Plant Image", color = Color.Gray)
+            if (plant.information.photoUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = plant.information.photoUrl,
+                    contentDescription = "Plant photo",
+                    modifier = Modifier
+                        .size(200.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.LightGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No Image", color = Color.Gray)
+                }
             }
 
             // Action Buttons

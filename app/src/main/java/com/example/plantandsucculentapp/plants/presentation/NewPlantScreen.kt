@@ -1,6 +1,8 @@
 package com.example.plantandsucculentapp.plants.presentation
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.graphics.Bitmap
 import android.widget.DatePicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -84,6 +86,31 @@ fun NewPlantScreen(
         onResult = { bitmapResult -> if (bitmapResult != null) bitmap = bitmapResult }
     )
 
+    // Add this function to handle saving the photo
+    fun savePhotoAndCreatePlant() {
+        val photoUrlToSave = when {
+            photoUri.isNotEmpty() -> photoUri
+            bitmap != null -> {
+                // Save bitmap to internal storage and get URI
+                val fileName = "plant_${UUID.randomUUID()}.jpg"
+                context.openFileOutput(fileName, Context.MODE_PRIVATE).use { stream ->
+                    bitmap!!.compress(Bitmap.CompressFormat.JPEG, 90, stream)
+                }
+                "file://${context.filesDir}/$fileName"
+            }
+            else -> ""
+        }
+
+        onCreatePlant(
+            UUID.randomUUID().toString(),
+            PlantOuterClass.PlantInformation.newBuilder()
+                .setName(name)
+                .setLastWatered(calendar.timeInMillis)
+                .setPhotoUrl(photoUrlToSave)  // Add the photo URL
+                .build()
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -95,15 +122,7 @@ fun NewPlantScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = {
-                            onCreatePlant(
-                                UUID.randomUUID().toString(),
-                                PlantOuterClass.PlantInformation.newBuilder()
-                                    .setName(name)
-                                    .setLastWatered(calendar.timeInMillis)
-                                    .build()
-                            )
-                        },
+                        onClick = { savePhotoAndCreatePlant() },
                         enabled = isFormComplete
                     ) {
                         Icon(
