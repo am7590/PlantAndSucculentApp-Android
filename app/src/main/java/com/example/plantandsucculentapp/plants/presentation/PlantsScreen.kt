@@ -31,17 +31,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import plant.PlantOuterClass
 import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
 import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
 import com.example.plantandsucculentapp.core.presentation.util.UiState
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun PlantsScreen(
@@ -109,7 +103,6 @@ fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Un
                 PlantListItem(
                     name = plant.information.name,
                     lastWatered = plant.information.lastWatered,
-                    photoUrl = plant.information.photoUrl,
                     onItemClick = { onPlantClick(plant) }
                 )
             }
@@ -121,16 +114,18 @@ fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Un
 fun PlantListItem(
     name: String,
     lastWatered: Long,
-    photoUrl: String,
     onItemClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .clickable(onClick = onItemClick),
-        shape = MaterialTheme.shapes.medium,
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .padding(vertical = 8.dp, horizontal = 16.dp)
+            .clickable { onItemClick() },
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier
@@ -138,66 +133,30 @@ fun PlantListItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Plant Image
-            if (photoUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = photoUrl,
-                    contentDescription = "Plant photo",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No Image", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .background(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                        RoundedCornerShape(size = 12.dp)
+                    )
+            )
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column {
                 Text(
                     text = name,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Last watered: ${formatDate(lastWatered)}",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Last Watered: $lastWatered days ago",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
-}
-
-// Update the call site in PlantsContent
-@Composable
-private fun PlantsContent(
-    plants: List<PlantOuterClass.Plant>,
-    onPlantClick: (PlantOuterClass.Plant) -> Unit
-) {
-    LazyColumn {
-        items(plants) { plant ->
-            PlantListItem(
-                name = plant.information.name,
-                lastWatered = plant.information.lastWatered,
-                photoUrl = plant.information.photoUrl,
-                onItemClick = { onPlantClick(plant) }
-            )
-        }
-    }
-}
-
-private fun formatDate(timestamp: Long): String {
-    val date = Date(timestamp)
-    val format = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-    return format.format(date)
 }
