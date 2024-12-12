@@ -21,10 +21,16 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        buildConfigField("Boolean", "USE_REAL_SERVER", "false")
     }
 
     buildTypes {
+        debug {
+            buildConfigField("Boolean", "USE_REAL_SERVER", "false")
+        }
         release {
+            buildConfigField("Boolean", "USE_REAL_SERVER", "true")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -41,6 +47,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"

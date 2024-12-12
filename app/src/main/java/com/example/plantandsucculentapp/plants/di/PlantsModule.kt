@@ -2,6 +2,7 @@ package com.example.plantandsucculentapp.plants.di
 
 //import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import com.example.plantandsucculentapp.core.network.GrpcClient
+import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import com.example.plantandsucculentapp.core.network.MockGrpcClient
 import com.example.plantandsucculentapp.plants.data.PlantsRepositoryImpl
 import com.example.plantandsucculentapp.plants.domain.Repository
@@ -11,6 +12,8 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import com.example.plantandsucculentapp.BuildConfig
+
 //
 //val plantsModule = module {
 //    single {
@@ -45,13 +48,19 @@ import retrofit2.converter.gson.GsonConverterFactory
 //}
 
 val plantsModule = module {
-    single { GrpcClient() }
+    single<GrpcClientInterface> {
+        if (BuildConfig.USE_REAL_SERVER) {
+            GrpcClient()
+        } else {
+            MockGrpcClient()
+        }
+    }
 
-    single<Repository>(qualifier = named("PlantsViewModelRepositoryImpl")) {
+    single<Repository> {
         PlantsRepositoryImpl(get())
     }
 
     viewModel {
-        PlantsViewModel(get(named("PlantsViewModelRepositoryImpl")))
+        PlantsViewModel(get())
     }
 }

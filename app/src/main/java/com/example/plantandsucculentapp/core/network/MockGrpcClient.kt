@@ -3,7 +3,7 @@ package com.example.plantandsucculentapp.core.network
 import plant.PlantOuterClass
 import plant.PlantServiceGrpc
 
-class MockGrpcClient {
+class MockGrpcClient : GrpcClientInterface {
     private val plantsList = mutableListOf<PlantOuterClass.Plant>()
 
     init {
@@ -37,39 +37,40 @@ class MockGrpcClient {
         )
     }
 
-    fun fetch(): String {
-        // no-op
-        return ""
+    override fun registerOrGetUser(uuid: String): Result<PlantOuterClass.UserResponse> {
+        return Result.success(PlantOuterClass.UserResponse.getDefaultInstance())
     }
 
-    fun addPlant(userId: String, plant: PlantOuterClass.Plant): PlantOuterClass.PlantResponse {
-        plantsList.add(plant)
-        return PlantOuterClass.PlantResponse.newBuilder()
-            .setStatus("added")
-            .build()
-    }
-
-    fun getWatered(uuid: String): PlantOuterClass.ListOfPlants {
-        return PlantOuterClass.ListOfPlants.newBuilder()
+    override fun getWatered(userId: String): Result<PlantOuterClass.ListOfPlants> {
+        return Result.success(PlantOuterClass.ListOfPlants.newBuilder()
             .addAllPlants(plantsList)
-            .build()
+            .build())
     }
 
-    fun getPlant(uuid: String, sku: String): PlantOuterClass.Plant? {
-        return plantsList.find { it.identifier.sku == sku }
+    override fun addPlant(userId: String, plant: PlantOuterClass.Plant): Result<PlantOuterClass.PlantResponse> {
+        plantsList.add(plant)
+        return Result.success(PlantOuterClass.PlantResponse.newBuilder()
+            .setStatus("SUCCESS")
+            .build())
     }
 
-    fun updatePlant(
-        uuid: String,
+    override fun updatePlant(
+        userId: String,
         identifier: PlantOuterClass.PlantIdentifier,
         information: PlantOuterClass.PlantInformation
-    ): PlantOuterClass.PlantUpdateResponse {
+    ): Result<PlantOuterClass.PlantUpdateResponse> {
         val index = plantsList.indexOfFirst { it.identifier.sku == identifier.sku }
         if (index != -1) {
             plantsList[index] = plantsList[index].toBuilder().setInformation(information).build()
         }
-        return PlantOuterClass.PlantUpdateResponse.newBuilder()
-            .setStatus("updated")
-            .build()
+        return Result.success(PlantOuterClass.PlantUpdateResponse.newBuilder()
+            .setStatus("SUCCESS")
+            .build())
     }
+
+    override fun shutdown() {
+        // No-op for mock
+    }
+
+    override fun testConnection(): Boolean = true
 }

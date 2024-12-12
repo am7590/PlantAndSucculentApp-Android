@@ -45,28 +45,17 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (grpcClient.testConnection()) {
-            println("$$$$$ Successfully connected to gRPC server")
-        } else {
-            println("$$$$$ Failed to connect to gRPC server")
-        }
-
         setContent {
             PlantAndSucculentAppTheme {
                 val plantsViewModel: PlantsViewModel = koinViewModel()
-                PlantApp(plantsViewModel, grpcClient)
+                PlantApp(plantsViewModel)
             }
         }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        grpcClient.shutdown()
     }
 }
 
 @Composable
-fun PlantApp(plantsViewModel: PlantsViewModel, grpcClient: GrpcClient) {
+fun PlantApp(plantsViewModel: PlantsViewModel) {
     val navController = rememberNavController()
 
     val tabs = listOf(
@@ -127,7 +116,6 @@ fun PlantApp(plantsViewModel: PlantsViewModel, grpcClient: GrpcClient) {
                                     plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
                                 onHealthCheck = {
-                                    grpcClient.registerOrGetUser("1234")
                                     // TODO: implement health check
                                 },
                                 onAddPhoto = { photoUrl ->
@@ -177,10 +165,7 @@ fun BottomAppBar(navController: NavController, tabs: List<TabItem>) {
                 icon = { Icon(tab.icon, contentDescription = null) },
                 label = { Text(tab.title) },
                 selected = currentDestination?.destination?.route == tab.route,
-                onClick = {
-                    navController.navigate(tab.route)
-
-                }
+                onClick = { navController.navigate(tab.route) }
             )
         }
     }

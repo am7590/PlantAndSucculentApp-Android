@@ -1,6 +1,7 @@
 package com.example.plantandsucculentapp.core.network
 
 import android.util.Log
+import io.grpc.CallOptions
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import io.grpc.Status
@@ -8,18 +9,21 @@ import io.grpc.StatusException
 import plant.PlantOuterClass
 import plant.PlantServiceGrpc
 import java.util.concurrent.TimeUnit
+import java.net.ConnectException
 
 private const val TAG = "GrpcClient"
 
-class GrpcClient {
+class GrpcClient : GrpcClientInterface {
     private val channel: ManagedChannel = ManagedChannelBuilder
-        .forAddress("10.10.242.10", 9001)
+        .forAddress("10.0.2.2", 50051)
         .usePlaintext()
+        .keepAliveTime(30, TimeUnit.SECONDS)
+        .keepAliveTimeout(10, TimeUnit.SECONDS)
         .build()
 
     private val stub: PlantServiceGrpc.PlantServiceBlockingStub = PlantServiceGrpc.newBlockingStub(channel)
 
-    fun registerOrGetUser(uuid: String): Result<PlantOuterClass.UserResponse> {
+    override fun registerOrGetUser(uuid: String): Result<PlantOuterClass.UserResponse> {
         return try {
             val request = PlantOuterClass.UserIdentifier.newBuilder().setUuid(uuid).build()
             Result.success(stub.registerOrGetUser(request))
@@ -30,7 +34,7 @@ class GrpcClient {
         }
     }
 
-    fun getWatered(userId: String): Result<PlantOuterClass.ListOfPlants> {
+    override fun getWatered(userId: String): Result<PlantOuterClass.ListOfPlants> {
         return try {
             val request = PlantOuterClass.GetWateredRequest.newBuilder()
                 .setUuid(userId)
@@ -43,7 +47,7 @@ class GrpcClient {
         }
     }
 
-    fun addPlant(userId: String, plant: PlantOuterClass.Plant): Result<PlantOuterClass.PlantResponse> {
+    override fun addPlant(userId: String, plant: PlantOuterClass.Plant): Result<PlantOuterClass.PlantResponse> {
         return try {
             val request = PlantOuterClass.AddPlantRequest.newBuilder()
                 .setUserId(userId)
@@ -57,7 +61,7 @@ class GrpcClient {
         }
     }
 
-    fun updatePlant(
+    override fun updatePlant(
         userId: String,
         identifier: PlantOuterClass.PlantIdentifier,
         information: PlantOuterClass.PlantInformation
@@ -76,17 +80,47 @@ class GrpcClient {
         }
     }
 
-    fun testConnection(): Boolean {
+    override fun testConnection(): Boolean {
         return try {
             val result = registerOrGetUser("test-connection")
-            result.isSuccess
+            when {
+                result.isSuccess -> {
+                    Log.d(TAG, "Successfully connected to gRPC server")
+                    true
+                }
+                result.isFailure -> {
+                    val exception = result.exceptionOrNull()
+                    when (exception) {
+                        is StatusException -> {
+                            Log.e(TAG, "gRPC status error: ${exception.status}", exception)
+                            when (exception.status.code) {
+                                Status.Code.UNAVAILABLE -> {
+                                    val cause = exception.cause
+                                    if (cause is ConnectException) {
+                                        Log.e(TAG, "Connection refused. Is the server running on port 50051?", cause)
+                                    } else {
+                                        Log.e(TAG, "Server unavailable", cause)
+                                    }
+                                }
+                                else -> Log.e(TAG, "Unexpected status: ${exception.status}", exception)
+                            }
+                            false
+                        }
+                        else -> {
+                            Log.e(TAG, "Unexpected error during connection test", exception)
+                            false
+                        }
+                    }
+                }
+                else -> false
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Connection test failed", e)
+            Log.e(TAG, "Connection test failed with exception", e)
             false
         }
     }
 
-    private fun <T : Any> handleGrpcError(e: StatusException, methodName: String): Result<T> {
+    private fun <T> handleGrpcError(e: StatusException, methodName: String): Result<T> {
         val errorMessage = when (e.status.code) {
             Status.Code.UNAVAILABLE -> "Server is unavailable"
             Status.Code.DEADLINE_EXCEEDED -> "Request timed out"
@@ -97,7 +131,7 @@ class GrpcClient {
             Status.Code.INVALID_ARGUMENT -> "Invalid argument provided"
             else -> "gRPC error: ${e.status.code}"
         }
-        Log.e(TAG, "[gRPC] $methodName failed: $errorMessage", e)
+        Log.e(TAG, "$methodName failed: $errorMessage", e)
         return Result.failure(e)
     }
 
@@ -106,7 +140,7 @@ class GrpcClient {
         return Result.failure(e)
     }
 
-    fun shutdown() {
+    override fun shutdown() {
         try {
             channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
         } catch (e: Exception) {
