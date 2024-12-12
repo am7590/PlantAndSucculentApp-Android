@@ -26,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.android.identity.util.UUID
+import com.example.plantandsucculentapp.core.network.GrpcClient
 import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
 import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsScreen
@@ -34,24 +35,38 @@ import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.presentation.NewPlantScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import com.example.plantandsucculentapp.plants.trends.TrendsScreen
+import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import plant.PlantOuterClass
 
 class MainActivity : ComponentActivity() {
+    private val grpcClient: GrpcClient by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (grpcClient.testConnection()) {
+            println("$$$$$ Successfully connected to gRPC server")
+        } else {
+            println("$$$$$ Failed to connect to gRPC server")
+        }
+
         setContent {
             PlantAndSucculentAppTheme {
                 val plantsViewModel: PlantsViewModel = koinViewModel()
-                PlantApp(plantsViewModel)
+                PlantApp(plantsViewModel, grpcClient)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        grpcClient.shutdown()
     }
 }
 
 @Composable
-fun PlantApp(plantsViewModel: PlantsViewModel) {
+fun PlantApp(plantsViewModel: PlantsViewModel, grpcClient: GrpcClient) {
     val navController = rememberNavController()
 
     val tabs = listOf(
@@ -112,6 +127,7 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
                                     plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
                                 onHealthCheck = {
+                                    grpcClient.registerOrGetUser("1234")
                                     // TODO: implement health check
                                 },
                                 onAddPhoto = { photoUrl ->
@@ -161,7 +177,10 @@ fun BottomAppBar(navController: NavController, tabs: List<TabItem>) {
                 icon = { Icon(tab.icon, contentDescription = null) },
                 label = { Text(tab.title) },
                 selected = currentDestination?.destination?.route == tab.route,
-                onClick = { navController.navigate(tab.route) }
+                onClick = {
+                    navController.navigate(tab.route)
+
+                }
             )
         }
     }
