@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -96,6 +97,7 @@ fun PlantsDetailScreen(
             // Actions Section
             item {
                 PlantActionsSection(
+                    plant = plant,
                     onWaterPlant = onWaterPlant,
                     onHealthCheck = onHealthCheck
                 )
@@ -286,9 +288,14 @@ private fun PlantInfoSection(plant: PlantOuterClass.Plant) {
 
 @Composable
 private fun PlantActionsSection(
+    plant: PlantOuterClass.Plant,
     onWaterPlant: () -> Unit,
     onHealthCheck: () -> Unit
 ) {
+    val canPerformHealthCheck = plant.information.photosList.isNotEmpty() && 
+        (plant.information.lastHealthCheck == 0L || 
+         plant.information.photosList.maxOf { it.timestamp } > plant.information.lastHealthCheck)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
@@ -297,13 +304,14 @@ private fun PlantActionsSection(
             onClick = onWaterPlant,
             modifier = Modifier.weight(1f).padding(end = 8.dp)
         ) {
-            Icon(Icons.Default.Info, null)
+            Icon(Icons.Default.Refresh, null)
             Spacer(Modifier.width(8.dp))
             Text("Water Plant")
         }
 
         Button(
             onClick = onHealthCheck,
+            enabled = canPerformHealthCheck,
             modifier = Modifier.weight(1f).padding(start = 8.dp)
         ) {
             Icon(Icons.Default.Favorite, null)

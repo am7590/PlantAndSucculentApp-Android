@@ -13,4 +13,8 @@ interface GrpcClientInterface {
     ): Result<PlantOuterClass.PlantUpdateResponse>
     fun shutdown()
     fun testConnection(): Boolean
+    fun performHealthCheck(
+        identifier: PlantOuterClass.PlantIdentifier,
+        healthCheckData: String
+    ): Result<PlantOuterClass.HealthCheckDataResponse>
 }

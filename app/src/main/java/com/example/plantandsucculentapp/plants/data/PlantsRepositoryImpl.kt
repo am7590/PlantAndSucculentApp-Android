@@ -1,6 +1,7 @@
 package com.example.plantandsucculentapp.plants.data
 
 //import com.example.plantandsucculentapp.core.network.GrpcClientInterface
+import android.content.ContentValues.TAG
 import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import com.example.plantandsucculentapp.core.network.MockGrpcClient
 import com.example.plantandsucculentapp.core.util.NetworkException
@@ -13,12 +14,21 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import plant.PlantOuterClass
 import java.net.UnknownHostException
+import android.content.SharedPreferences
+import com.example.plantandsucculentapp.plants.data.model.HealthCheckResponse
+import android.util.Log
+import com.example.plantandsucculentapp.plants.data.PlantHealthService
 
 class PlantsRepositoryImpl(
     private val grpcClient: GrpcClientInterface,
     private val plantDao: PlantDao,
-    private val isMockEnabled: Boolean
+    private val isMockEnabled: Boolean,
+    private val sharedPreferences: SharedPreferences,
+    private val healthService: PlantHealthService
 ) : Repository {
+    private val healthCheckCache = mutableMapOf<String, HealthCheckResponse>()
+    private val cacheKeyPrefix = "healthcheck_cache_"
+
     override suspend fun fetchData(): String {
         return grpcClient.testConnection().toString()
     }
@@ -69,6 +79,43 @@ class PlantsRepositoryImpl(
         } catch (e: UnknownHostException) {
             throw NetworkException.NoConnection
         } catch (e: Exception) {
+            throw NetworkException.ServerError
+        }
+    }
+
+    override suspend fun performHealthCheck(
+        userId: String,
+        identifier: PlantOuterClass.PlantIdentifier,
+        latestPhotoUrl: String
+    ): String = withContext(Dispatchers.IO) {
+        val cacheKey = "$cacheKeyPrefix${identifier.sku}_${latestPhotoUrl.hashCode()}"
+        
+        try {
+            // Check cache first before making API call
+            sharedPreferences.getString(cacheKey, null)?.let { cached ->
+                Log.d(TAG, "Returning cached health check result")
+                return@withContext cached
+            }
+
+            Log.d(TAG, "No cache found, performing health check API call")
+            val result = healthService.checkPlantHealth(latestPhotoUrl)
+            
+            // Cache the result
+            if (!isMockEnabled) {
+                sharedPreferences.edit().putString(cacheKey, result).apply()
+                Log.d(TAG, "Cached new health check result")
+            }
+            
+            // Update plant information
+            val plant = plantDao.getPlantBySku(identifier.sku)
+            plant?.let {
+                val updatedPlant = it.copy(lastHealthCheck = System.currentTimeMillis())
+                plantDao.insertPlant(updatedPlant)
+            }
+            
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "Health check failed", e)
             throw NetworkException.ServerError
         }
     }

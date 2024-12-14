@@ -24,4 +24,12 @@ class CoreRepositoryImpl(get: Any) : Repository {
         TODO("Not yet implemented")
     }
 
+    override suspend fun performHealthCheck(
+        userId: String,
+        identifier: PlantOuterClass.PlantIdentifier,
+        latestPhotoUrl: String
+    ): String {
+        TODO("Not yet implemented")
+    }
+
 }

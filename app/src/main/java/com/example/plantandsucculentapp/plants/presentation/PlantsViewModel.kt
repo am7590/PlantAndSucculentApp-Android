@@ -17,6 +17,9 @@ class PlantsViewModel(
     private val _plantsState = MutableStateFlow<UiState<List<PlantOuterClass.Plant>>>(UiState.Loading)
     val plantsState = _plantsState.asStateFlow()
 
+    private val _lastHealthCheckResult = MutableStateFlow<String?>(null)
+    val lastHealthCheckResult: StateFlow<String?> = _lastHealthCheckResult.asStateFlow()
+
     init {
         fetchPlantList()
     }
@@ -53,5 +56,42 @@ class PlantsViewModel(
                 // Handle error if needed
             }
         }
+    }
+
+    fun performHealthCheck(plant: PlantOuterClass.Plant) {
+        viewModelScope.launch {
+            try {
+                // Only allow health check if there's a photo and it hasn't been checked recently
+                val latestPhoto = plant.information.photosList.maxByOrNull { it.timestamp }
+                if (latestPhoto != null && shouldAllowHealthCheck(plant)) {
+                    val result = repository.performHealthCheck(
+                        "user123", 
+                        plant.identifier,
+                        latestPhoto.url
+                    )
+                    _lastHealthCheckResult.value = result
+                    fetchPlantList() // Refresh to show updated health check timestamp
+                }
+            } catch (e: Exception) {
+                // Handle error
+                _lastHealthCheckResult.value = """{"error": "Failed to perform health check: ${e.message}"}"""
+            }
+        }
+    }
+
+    private fun shouldAllowHealthCheck(plant: PlantOuterClass.Plant): Boolean {
+        val lastHealthCheck = if (plant.information.hasLastHealthCheck()) {
+            plant.information.lastHealthCheck
+        } else {
+            0L
+        }
+        
+        // Allow health check if:
+        // 1. Never checked before (lastHealthCheck = 0)
+        // 2. Latest photo is newer than last health check
+        val latestPhotoTimestamp = plant.information.photosList
+            .maxOfOrNull { it.timestamp } ?: 0L
+            
+        return lastHealthCheck == 0L || latestPhotoTimestamp > lastHealthCheck
     }
 }

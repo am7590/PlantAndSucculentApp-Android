@@ -1,5 +1,6 @@
 package com.example.plantandsucculentapp.core.presentation
 
+import HealthCheckResultScreen
 import PlantsDetailScreen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -121,7 +122,8 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                                     plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
                                 onHealthCheck = {
-                                    // TODO: implement health check
+                                    plantsViewModel.performHealthCheck(plant)
+                                    navController.navigate("healthCheckResult")
                                 },
                                 onAddPhoto = { photoUrl ->
                                     val updatedPlant = plant.toBuilder()
@@ -131,7 +133,6 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                                                     PlantOuterClass.PhotoEntry.newBuilder()
                                                         .setUrl(photoUrl)
                                                         .setTimestamp(System.currentTimeMillis())
-                                                        .setNote("Plant photo")
                                                         .build()
                                                 )
                                                 .build()
@@ -156,6 +157,15 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
             }
             composable("trends") {
                 TrendsScreen(viewModel = plantsViewModel)
+            }
+            composable("healthCheckResult") {
+                val healthCheckResult = plantsViewModel.lastHealthCheckResult.collectAsState()
+                healthCheckResult.value?.let { it1 ->
+                    HealthCheckResultScreen(
+                        healthCheckResult = it1,
+                        onDismiss = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }

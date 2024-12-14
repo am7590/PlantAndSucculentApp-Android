@@ -1,6 +1,7 @@
 package com.example.plantandsucculentapp.plants.di
 
 //import com.example.plantandsucculentapp.core.network.GrpcClientInterface
+import android.content.Context
 import com.example.plantandsucculentapp.core.network.GrpcClient
 import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import com.example.plantandsucculentapp.core.network.MockGrpcClient
@@ -15,6 +16,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 import com.example.plantandsucculentapp.BuildConfig
 import androidx.room.Room
 import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
+import org.checkerframework.checker.units.qual.s
+import org.koin.android.ext.koin.androidContext
+import com.example.plantandsucculentapp.plants.data.PlantHealthService
 
 //
 //val plantsModule = module {
@@ -70,11 +74,18 @@ val plantsModule = module {
         }
     }
 
+    single { PlantHealthService() }
+
     single<Repository> {
         PlantsRepositoryImpl(
             grpcClient = get(),
             plantDao = get(),
-            isMockEnabled = !BuildConfig.USE_REAL_SERVER
+            isMockEnabled = !BuildConfig.USE_REAL_SERVER,
+            sharedPreferences = androidContext().getSharedPreferences(
+                "shared_prefs",
+                Context.MODE_PRIVATE
+            ),
+            healthService = get()
         )
     }
 

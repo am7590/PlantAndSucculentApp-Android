@@ -73,4 +73,39 @@ class MockGrpcClient : GrpcClientInterface {
     }
 
     override fun testConnection(): Boolean = true
+    override fun performHealthCheck(
+        identifier: PlantOuterClass.PlantIdentifier,
+        healthCheckData: String
+    ): Result<PlantOuterClass.HealthCheckDataResponse> {
+        // Simulate API response
+        val mockResponse = """
+            {
+                "id": "mock_health_check",
+                "custom_id": null,
+                "meta_data": {},
+                "uploaded_datetime": 1590994944.0,
+                "finished_datetime": 1590994945.0,
+                "suggestions": [
+                    {
+                        "id": "mock_suggestion",
+                        "plant_name": "Mock Plant",
+                        "probability": 0.9,
+                        "similar_images": []
+                    }
+                ],
+                "status": "success",
+                "sla_compliant_datetime": 1590994944.0,
+                "plant_details": {
+                    "common_names": ["Mock Plant"],
+                    "url": "https://example.com/mock-plant"
+                }
+            }
+        """.trimIndent()
+
+        return Result.success(
+            PlantOuterClass.HealthCheckDataResponse.newBuilder()
+                .setStatus(mockResponse)
+                .build()
+        )
+    }
 }

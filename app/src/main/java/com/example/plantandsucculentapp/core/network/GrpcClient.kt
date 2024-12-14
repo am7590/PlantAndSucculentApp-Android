@@ -10,6 +10,9 @@ import plant.PlantOuterClass
 import plant.PlantServiceGrpc
 import java.util.concurrent.TimeUnit
 import java.net.ConnectException
+import java.io.File
+import android.util.Base64
+import io.grpc.StatusRuntimeException
 
 private const val TAG = "GrpcClient"
 
@@ -19,9 +22,15 @@ class GrpcClient : GrpcClientInterface {
         .usePlaintext()
         .keepAliveTime(30, TimeUnit.SECONDS)
         .keepAliveTimeout(10, TimeUnit.SECONDS)
+        .maxInboundMessageSize(20 * 1024 * 1024)
+        .maxInboundMetadataSize(1024 * 1024)
+        .intercept(GrpcLoggingInterceptor())
         .build()
 
     private val stub: PlantServiceGrpc.PlantServiceBlockingStub = PlantServiceGrpc.newBlockingStub(channel)
+        .withDeadlineAfter(30, TimeUnit.SECONDS)
+        .withMaxInboundMessageSize(20 * 1024 * 1024)
+        .withMaxOutboundMessageSize(20 * 1024 * 1024)
 
     override fun registerOrGetUser(uuid: String): Result<PlantOuterClass.UserResponse> {
         return try {
@@ -117,6 +126,60 @@ class GrpcClient : GrpcClientInterface {
         } catch (e: Exception) {
             Log.e(TAG, "Connection test failed with exception", e)
             false
+        }
+    }
+
+    override fun performHealthCheck(
+        identifier: PlantOuterClass.PlantIdentifier,
+        healthCheckData: String
+    ): Result<PlantOuterClass.HealthCheckDataResponse> {
+        return try {
+            Log.d(TAG, "Starting health check for plant ${identifier.sku}")
+            
+            val imageFile = File(healthCheckData)
+            val bytes = imageFile.readBytes()
+            
+            if (bytes.size > 10 * 1024 * 1024) {
+                Log.e(TAG, "Image too large: ${bytes.size} bytes")
+                return Result.failure(Exception("Image file too large (max 10MB)"))
+            }
+            
+            val base64Image = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            Log.d(TAG, "Converted image to base64 (${base64Image.length} chars)")
+
+            val jsonPayload = buildString {
+                append("{")
+                append("\"api_key\":\"2b10YPxXYYHtNWGnBbq4cf9V3\",")
+                append("\"images\":[\"data:image/jpeg;base64,$base64Image\"],")
+                append("\"modifiers\":[\"health_all\",\"disease_similar_images\"],")
+                append("\"plant_language\":\"en\",")
+                append("\"plant_details\":[\"common_names\",\"url\",\"wiki_description\",\"taxonomy\"]")
+                append("}")
+            }
+
+            Log.d(TAG, "Created API request payload (${jsonPayload.length} chars)")
+            Log.d(TAG, "Request JSON: $jsonPayload")
+
+            val request = PlantOuterClass.HealthCheckDataRequest.newBuilder()
+                .setIdentifier(identifier)
+                .setHealthCheckInformation(jsonPayload)
+                .build()
+
+            Log.d(TAG, "Sending gRPC request")
+            val response = stub.saveHealthCheckData(request)
+            Log.d(TAG, "Received health check response: ${response.status}")
+            Result.success(response)
+        } catch (e: Exception) {
+            Log.e(TAG, "Health check failed", e)
+            if (e is StatusRuntimeException) {
+                Log.e(TAG, """
+                    gRPC Status: ${e.status}
+                    Description: ${e.status.description}
+                    Cause: ${e.cause?.message}
+                    Trailers: ${e.trailers}
+                """.trimIndent())
+            }
+            Result.failure(e)
         }
     }
 
