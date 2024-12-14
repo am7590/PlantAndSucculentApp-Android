@@ -1,6 +1,8 @@
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -41,9 +43,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import plant.PlantOuterClass
-import java.util.UUID
+import java.util.Date
+import java.util.Locale
+import java.text.SimpleDateFormat
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FloatingActionButton
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantsDetailScreen(
     plant: PlantOuterClass.Plant,
@@ -52,132 +66,317 @@ fun PlantsDetailScreen(
     onAddPhoto: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    var photoUri by remember { mutableStateOf("") }
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    val context = LocalContext.current
-
-    // Photo capture launchers
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent(),
-        onResult = { uri ->
-            if (uri != null) {
-                photoUri = uri.toString()
-                // Save and update the plant
-                onAddPhoto(photoUri)
-            }
-        }
-    )
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview(),
-        onResult = { bitmapResult ->
-            if (bitmapResult != null) {
-                bitmap = bitmapResult
-                // Save bitmap to internal storage and get URI
-                val fileName = "plant_${UUID.randomUUID()}.jpg"
-                context.openFileOutput(fileName, Context.MODE_PRIVATE).use { stream ->
-                    bitmapResult.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-                }
-                val photoUrl = "file://${context.filesDir}/$fileName"
-                onAddPhoto(photoUrl)
-            }
-        }
-    )
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = plant.information.name) },
+                title = { Text(plant.information.name) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, "Back")
                     }
                 }
             )
         }
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
         ) {
-            // Photo carousel
-            if (plant.information.photosList.isNotEmpty()) {
-                val pagerState = rememberPagerState(pageCount = { plant.information.photosList.size })
+            // Plant Image Section
+            item {
+                PlantImageSection(
+                    photos = plant.information.photosList,
+                    onAddPhoto = onAddPhoto
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                ) { page ->
-                    val photo = plant.information.photosList[page]
-                    AsyncImage(
-                        model = photo.url,
-                        contentDescription = "Plant photo",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+            // Actions Section
+            item {
+                PlantActionsSection(
+                    onWaterPlant = onWaterPlant,
+                    onHealthCheck = onHealthCheck
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-                // Page indicator dots
-                Row(
-                    Modifier
-                        .height(50.dp)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    repeat(pagerState.pageCount) { iteration ->
-                        val color = if (pagerState.currentPage == iteration) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .padding(2.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .size(8.dp)
+            // Plant Info Section
+            item {
+                PlantInfoSection(plant)
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // Photo History Section
+            item {
+                Text(
+                    "Photo History",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            items(plant.information.photosList.sortedByDescending { it.timestamp }) { photo ->
+                PhotoHistoryItem(photo)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PlantImageSection(
+    photos: List<PlantOuterClass.PhotoEntry>,
+    onAddPhoto: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        uri?.let {
+            val imagePath = saveImageToInternalStorage(context, uri)
+            imagePath?.let { onAddPhoto(it) }
+        }
+    }
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+        ) {
+            if (photos.isNotEmpty()) {
+                val pagerState = rememberPagerState(pageCount = { photos.size })
+                
+                Column {
+                    // Photo Pager
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.weight(1f)
+                    ) { page ->
+                        AsyncImage(
+                            model = photos[page].url,
+                            contentDescription = "Plant photo ${page + 1}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
+                    }
+                    
+                    // Page Indicator
+                    Row(
+                        Modifier
+                            .height(50.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(photos.size) { iteration ->
+                            val color = if (pagerState.currentPage == iteration) 
+                                MaterialTheme.colorScheme.primary
+                            else 
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            Box(
+                                modifier = Modifier
+                                    .padding(2.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .size(8.dp)
+                            )
+                        }
                     }
                 }
             } else {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
+                        .fillMaxSize()
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No photos yet")
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            // Action Buttons
-            Row(
+            // Add photo button
+            FloatingActionButton(
+                onClick = {
+                    photoPickerLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
             ) {
-                Button(
-                    onClick = {
-                        cameraLauncher.launch(null)
-                        onWaterPlant()
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Water Plant")
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = onHealthCheck,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Health Check")
+                Icon(Icons.Default.Add, "Add photo")
+            }
+        }
+    }
+}
+
+private fun saveImageToInternalStorage(context: Context, uri: Uri): String? {
+    return try {
+        // Create a unique filename using timestamp
+        val filename = "plant_photo_${System.currentTimeMillis()}.jpg"
+
+        // Get the input stream from the URI
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            // Save to internal storage
+            context.openFileOutput(filename, Context.MODE_PRIVATE).use { output ->
+                input.copyTo(output)
+            }
+        }
+
+        // Return the full path to the saved file
+        context.getFileStreamPath(filename).absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+@Composable
+private fun PlantInfoSection(plant: PlantOuterClass.Plant) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            InfoRow(
+                label = "Name",
+                value = plant.information.name
+            )
+            if (plant.information.hasIdentifiedSpeciesName()) {
+                InfoRow(
+                    label = "Species",
+                    value = plant.information.identifiedSpeciesName
+                )
+            }
+            InfoRow(
+                label = "Last Watered",
+                value = formatTimestamp(plant.information.lastWatered)
+            )
+            if (plant.information.hasLastHealthCheck()) {
+                InfoRow(
+                    label = "Last Health Check",
+                    value = formatTimestamp(plant.information.lastHealthCheck)
+                )
+            }
+            InfoRow(
+                label = "ID",
+                value = plant.identifier.sku
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlantActionsSection(
+    onWaterPlant: () -> Unit,
+    onHealthCheck: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        Button(
+            onClick = onWaterPlant,
+            modifier = Modifier.weight(1f).padding(end = 8.dp)
+        ) {
+            Icon(Icons.Default.Info, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Water Plant")
+        }
+
+        Button(
+            onClick = onHealthCheck,
+            modifier = Modifier.weight(1f).padding(start = 8.dp)
+        ) {
+            Icon(Icons.Default.Favorite, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Health Check")
+        }
+    }
+}
+
+@Composable
+private fun PhotoHistoryItem(photo: PlantOuterClass.PhotoEntry) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = photo.url,
+                contentDescription = "Historical plant photo",
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop
+            )
+            
+            Column(
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .weight(1f)
+            ) {
+                Text(
+                    text = formatTimestamp(photo.timestamp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (photo.hasNote()) {
+                    Text(
+                        text = photo.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val date = Date(timestamp)
+    val format = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
+    return format.format(date)
 }
