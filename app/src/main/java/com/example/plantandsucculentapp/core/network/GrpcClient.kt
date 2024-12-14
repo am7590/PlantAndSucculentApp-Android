@@ -15,7 +15,7 @@ private const val TAG = "GrpcClient"
 
 class GrpcClient : GrpcClientInterface {
     private val channel: ManagedChannel = ManagedChannelBuilder
-        .forAddress("10.0.2.2", 50051)
+        .forAddress("10.0.2.2", 9001)
         .usePlaintext()
         .keepAliveTime(30, TimeUnit.SECONDS)
         .keepAliveTimeout(10, TimeUnit.SECONDS)

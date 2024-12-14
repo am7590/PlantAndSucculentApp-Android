@@ -4,8 +4,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,27 +23,46 @@ import com.example.plantandsucculentapp.core.presentation.components.LoadingScre
 import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.presentation.PlantsContent
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
+import com.example.plantandsucculentapp.plants.trends.components.EmptyTrendsScreen
 import plant.PlantOuterClass
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrendsScreen(
-    viewModel: PlantsViewModel,
-) {
+fun TrendsScreen(viewModel: PlantsViewModel) {
     val plantsState by viewModel.plantsState.collectAsState()
 
-    when (plantsState) {
-        is UiState.Loading -> {
-            LoadingScreen()
-        }
-        is UiState.Success -> {
-            val plants = (plantsState as UiState.Success).data
-            TrendsContent(plants = plants)
-        }
-        is UiState.Error -> {
-            ErrorScreen(
-                message = (plantsState as UiState.Error).message,
-                onRetry = { viewModel.fetchPlantList() }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Trends",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             )
+        }
+    ) { paddingValues ->
+        when (plantsState) {
+            is UiState.Loading -> {
+                LoadingScreen()
+            }
+            is UiState.Success -> {
+                val plants = (plantsState as UiState.Success).data
+                if (plants.isEmpty()) {
+                    EmptyTrendsScreen()
+                } else {
+                    // TODO: Show actual trends data when implemented
+                    EmptyTrendsScreen()  // For now, always show empty state
+                }
+            }
+            is UiState.Error -> {
+                ErrorScreen(
+                    message = (plantsState as UiState.Error).message,
+                    onRetry = { viewModel.fetchPlantList() }
+                )
+            }
         }
     }
 }

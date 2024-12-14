@@ -13,6 +13,8 @@ import org.koin.dsl.module
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import com.example.plantandsucculentapp.BuildConfig
+import androidx.room.Room
+import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
 
 //
 //val plantsModule = module {
@@ -48,16 +50,32 @@ import com.example.plantandsucculentapp.BuildConfig
 //}
 
 val plantsModule = module {
+    single {
+        Room.databaseBuilder(
+            get(),
+            PlantDatabase::class.java,
+            "plant_db"
+        ).build()
+    }
+
+    single { get<PlantDatabase>().plantDao }
+
     single<GrpcClientInterface> {
         if (BuildConfig.USE_REAL_SERVER) {
+            println("Using real gRPC client")
             GrpcClient()
         } else {
+            println("Using mock gRPC client")
             MockGrpcClient()
         }
     }
 
     single<Repository> {
-        PlantsRepositoryImpl(get())
+        PlantsRepositoryImpl(
+            grpcClient = get(),
+            plantDao = get(),
+            isMockEnabled = !BuildConfig.USE_REAL_SERVER
+        )
     }
 
     viewModel {

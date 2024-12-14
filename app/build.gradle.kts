@@ -4,11 +4,13 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.protobuf)
+    alias(libs.plugins.compose.compiler)
+    id("com.google.devtools.ksp")
 }
 
 android {
     namespace = "com.example.plantandsucculentapp"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.plantandsucculentapp"
@@ -27,7 +29,7 @@ android {
 
     buildTypes {
         debug {
-            buildConfigField("Boolean", "USE_REAL_SERVER", "false")
+            buildConfigField("Boolean", "USE_REAL_SERVER", "true")
         }
         release {
             buildConfigField("Boolean", "USE_REAL_SERVER", "true")
@@ -49,9 +51,9 @@ android {
         compose = true
         buildConfig = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
-    }
+//    composeOptions {
+//        kotlinCompilerExtensionVersion = "1.5.1"
+//    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -95,6 +97,11 @@ dependencies {
 
     // photo stuff
     implementation(libs.coil.compose)
+
+    // room for caching
+    implementation(libs.androidx.room.runtime)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.room.ktx)
 }
 
 protobuf {

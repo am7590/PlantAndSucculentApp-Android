@@ -6,6 +6,7 @@ import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.domain.Repository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import plant.PlantOuterClass
 
@@ -14,7 +15,7 @@ class PlantsViewModel(
 ) : ViewModel() {
 
     private val _plantsState = MutableStateFlow<UiState<List<PlantOuterClass.Plant>>>(UiState.Loading)
-    val plantsState: StateFlow<UiState<List<PlantOuterClass.Plant>>> = _plantsState
+    val plantsState = _plantsState.asStateFlow()
 
     init {
         fetchPlantList()
@@ -22,12 +23,12 @@ class PlantsViewModel(
 
     fun fetchPlantList() {
         viewModelScope.launch {
+            _plantsState.value = UiState.Loading
             try {
-                _plantsState.value = UiState.Loading
-                val mockPlants = repository.getWateredPlants()
-                _plantsState.value = UiState.Success(mockPlants)
+                val plants = repository.getWateredPlants()
+                _plantsState.value = UiState.Success(plants)
             } catch (e: Exception) {
-                _plantsState.value = UiState.Error(e.message ?: "Unknown error occurred")
+                _plantsState.value = UiState.Error(e.message ?: "Unknown error")
             }
         }
     }
@@ -35,11 +36,10 @@ class PlantsViewModel(
     fun addPlant(userId: String, plant: PlantOuterClass.Plant) {
         viewModelScope.launch {
             try {
-                _plantsState.value = UiState.Loading
                 repository.addPlant(userId, plant)
                 fetchPlantList()
             } catch (e: Exception) {
-                _plantsState.value = UiState.Error(e.message ?: "Failed to add plant")
+                // Handle error if needed
             }
         }
     }
@@ -47,11 +47,10 @@ class PlantsViewModel(
     fun updatePlant(userId: String, identifier: PlantOuterClass.PlantIdentifier, information: PlantOuterClass.PlantInformation) {
         viewModelScope.launch {
             try {
-                _plantsState.value = UiState.Loading
                 repository.updatePlant(userId, identifier, information)
                 fetchPlantList()
             } catch (e: Exception) {
-                _plantsState.value = UiState.Error(e.message ?: "Failed to update plant")
+                // Handle error if needed
             }
         }
     }

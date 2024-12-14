@@ -39,6 +39,7 @@ import com.example.plantandsucculentapp.core.presentation.components.LoadingScre
 import com.example.plantandsucculentapp.core.presentation.util.UiState
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import com.example.plantandsucculentapp.plants.presentation.components.EmptyPlantsScreen
 
 @Composable
 fun PlantsScreen(
@@ -74,7 +75,11 @@ fun PlantsScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Unit, onPlantClick: (PlantOuterClass.Plant) -> Unit) {
+fun PlantsContent(
+    plants: List<PlantOuterClass.Plant>, 
+    onAddPlantClick: () -> Unit, 
+    onPlantClick: (PlantOuterClass.Plant) -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -97,18 +102,22 @@ fun PlantsContent(plants: List<PlantOuterClass.Plant>, onAddPlantClick: () -> Un
             }
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            items(plants) { plant ->
-                PlantListItem(
-                    name = plant.information.name,
-                    lastWatered = plant.information.lastWatered,
-                    photoUrl = plant.information.photosList.maxByOrNull { it.timestamp }?.url,
-                    onItemClick = { onPlantClick(plant) }
-                )
+        if (plants.isEmpty()) {
+            EmptyPlantsScreen()
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                items(plants) { plant ->
+                    PlantListItem(
+                        name = plant.information.name,
+                        lastWatered = plant.information.lastWatered,
+                        photoUrl = plant.information.photosList.maxByOrNull { it.timestamp }?.url,
+                        onItemClick = { onPlantClick(plant) }
+                    )
+                }
             }
         }
     }

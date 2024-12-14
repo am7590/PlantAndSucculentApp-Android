@@ -26,7 +26,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.android.identity.util.UUID
-import com.example.plantandsucculentapp.core.network.GrpcClient
 import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
 import com.example.plantandsucculentapp.core.presentation.components.LoadingScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsScreen
@@ -38,9 +37,12 @@ import com.example.plantandsucculentapp.plants.trends.TrendsScreen
 import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import plant.PlantOuterClass
+import android.provider.Settings
 
 class MainActivity : ComponentActivity() {
-    private val grpcClient: GrpcClient by inject()
+    private val deviceId: String by lazy {
+        Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,14 +50,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             PlantAndSucculentAppTheme {
                 val plantsViewModel: PlantsViewModel = koinViewModel()
-                PlantApp(plantsViewModel)
+                PlantApp(plantsViewModel, deviceId)
             }
         }
     }
 }
 
 @Composable
-fun PlantApp(plantsViewModel: PlantsViewModel) {
+fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
     val navController = rememberNavController()
 
     val tabs = listOf(
@@ -85,7 +87,10 @@ fun PlantApp(plantsViewModel: PlantsViewModel) {
                     onCreatePlant = { userId, plantInfo ->
                         val newPlant = PlantOuterClass.Plant.newBuilder()
                             .setIdentifier(
-                                PlantOuterClass.PlantIdentifier.newBuilder().setSku(UUID.randomUUID().toString()).build()
+                                PlantOuterClass.PlantIdentifier.newBuilder()
+                                    .setSku(UUID.randomUUID().toString())
+                                    .setDeviceIdentifier(deviceId)
+                                    .build()
                             )
                             .setInformation(plantInfo)
                             .build()
