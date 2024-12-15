@@ -9,14 +9,10 @@ import com.example.plantandsucculentapp.plants.data.PlantsRepositoryImpl
 import com.example.plantandsucculentapp.plants.domain.Repository
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
-import org.koin.core.qualifier.named
 import org.koin.dsl.module
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import com.example.plantandsucculentapp.BuildConfig
 import androidx.room.Room
 import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
-import org.checkerframework.checker.units.qual.s
 import org.koin.android.ext.koin.androidContext
 import com.example.plantandsucculentapp.plants.data.PlantHealthService
 
@@ -59,7 +55,9 @@ val plantsModule = module {
             get(),
             PlantDatabase::class.java,
             "plant_db"
-        ).build()
+        )
+        .fallbackToDestructiveMigration()
+        .build()
     }
 
     single { get<PlantDatabase>().plantDao }
@@ -74,7 +72,7 @@ val plantsModule = module {
         }
     }
 
-    single { PlantHealthService() }
+    single { PlantHealthService(context = androidContext()) }
 
     single<Repository> {
         PlantsRepositoryImpl(

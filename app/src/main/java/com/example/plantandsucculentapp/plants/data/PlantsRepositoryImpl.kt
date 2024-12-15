@@ -93,30 +93,58 @@ class PlantsRepositoryImpl(
         try {
             // Check cache first before making API call
             sharedPreferences.getString(cacheKey, null)?.let { cached ->
-                Log.d(TAG, "Returning cached health check result")
+                Log.d(TAG, "Returning cached health check result: $cached")
+                updatePlantHealthStatus(identifier.sku, cached)
                 return@withContext cached
             }
 
             Log.d(TAG, "No cache found, performing health check API call")
             val result = healthService.checkPlantHealth(latestPhotoUrl)
+            Log.d(TAG, "Got health check result: $result")
             
             // Cache the result
-            if (!isMockEnabled) {
-                sharedPreferences.edit().putString(cacheKey, result).apply()
-                Log.d(TAG, "Cached new health check result")
-            }
+            sharedPreferences.edit()
+                .putString(cacheKey, result)
+                .apply()
+            Log.d(TAG, "Cached new health check result")
             
             // Update plant information
-            val plant = plantDao.getPlantBySku(identifier.sku)
-            plant?.let {
-                val updatedPlant = it.copy(lastHealthCheck = System.currentTimeMillis())
-                plantDao.insertPlant(updatedPlant)
-            }
+            updatePlantHealthStatus(identifier.sku, result)
             
             result
         } catch (e: Exception) {
             Log.e(TAG, "Health check failed", e)
             throw NetworkException.ServerError
+        }
+    }
+
+    private suspend fun updatePlantHealthStatus(sku: String, healthResult: String) {
+        try {
+            val plant = plantDao.getPlantBySku(sku)
+            Log.d(TAG, "Current plant data before update: $plant")
+            
+            plant?.let {
+                val updatedPlant = it.copy(
+                    lastHealthCheck = System.currentTimeMillis(),
+                    lastHealthResult = healthResult
+                )
+                Log.d(TAG, "Updating plant with health result: $updatedPlant")
+                
+                // Store in Room
+                plantDao.insertPlant(updatedPlant)
+                
+                // Verify the update
+                val verifyPlant = plantDao.getPlantBySku(sku)
+                Log.d(TAG, """
+                    Verified plant after update: 
+                    SKU: ${verifyPlant?.sku}
+                    LastHealthCheck: ${verifyPlant?.lastHealthCheck}
+                    LastHealthResult: ${verifyPlant?.lastHealthResult}
+                    LastHealthResult length: ${verifyPlant?.lastHealthResult?.length}
+                """.trimIndent())
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update plant health status", e)
         }
     }
 }

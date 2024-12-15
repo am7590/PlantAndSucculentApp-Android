@@ -262,22 +262,18 @@ private fun PlantInfoSection(plant: PlantOuterClass.Plant) {
                 label = "Name",
                 value = plant.information.name
             )
-            if (plant.information.hasIdentifiedSpeciesName()) {
-                InfoRow(
-                    label = "Species",
-                    value = plant.information.identifiedSpeciesName
-                )
-            }
+            InfoRow(
+                label = "Species",
+                value = plant.information.identifiedSpeciesName
+            )
             InfoRow(
                 label = "Last Watered",
                 value = formatTimestamp(plant.information.lastWatered)
             )
-            if (plant.information.hasLastHealthCheck()) {
-                InfoRow(
-                    label = "Last Health Check",
-                    value = formatTimestamp(plant.information.lastHealthCheck)
-                )
-            }
+            InfoRow(
+                label = "Last Health Check",
+                value = formatTimestamp(plant.information.lastHealthCheck)
+            )
             InfoRow(
                 label = "ID",
                 value = plant.identifier.sku

@@ -163,7 +163,7 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                 healthCheckResult.value?.let { it1 ->
                     HealthCheckResultScreen(
                         healthCheckResult = it1,
-                        onDismiss = { navController.popBackStack() }
+                        onClose = { navController.popBackStack() }
                     )
                 }
             }

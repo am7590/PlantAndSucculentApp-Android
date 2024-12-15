@@ -11,10 +11,11 @@ data class PlantEntity(
     val deviceIdentifier: String,
     val name: String,
     val lastWatered: Long,
-    val lastHealthCheck: Long?,
+    val lastHealthCheck: Long = 0,
     val lastIdentification: Long?,
     val identifiedSpeciesName: String?,
-    val photos: List<PhotoEntity>
+    val photos: List<PhotoEntity>,
+    val lastHealthResult: String? = null
 )
 
 data class PhotoEntity(
@@ -34,10 +35,11 @@ fun PlantEntity.toPlant(): PlantOuterClass.Plant {
             PlantOuterClass.PlantInformation.newBuilder()
                 .setName(name)
                 .setLastWatered(lastWatered)
+                .setLastHealthCheck(lastHealthCheck)
                 .apply {
-                    lastHealthCheck?.let { setLastHealthCheck(it) }
                     lastIdentification?.let { setLastIdentification(it) }
                     identifiedSpeciesName?.let { setIdentifiedSpeciesName(it) }
+                    lastHealthResult?.let { setLastHealthResult(it) }
                     photos.forEach { photo ->
                         addPhotos(
                             PlantOuterClass.PhotoEntry.newBuilder()
@@ -58,15 +60,16 @@ fun PlantOuterClass.Plant.toEntity(): PlantEntity {
         deviceIdentifier = identifier.deviceIdentifier,
         name = information.name,
         lastWatered = information.lastWatered,
-        lastHealthCheck = if (information.hasLastHealthCheck()) information.lastHealthCheck else null,
-        lastIdentification = if (information.hasLastIdentification()) information.lastIdentification else null,
-        identifiedSpeciesName = if (information.hasIdentifiedSpeciesName()) information.identifiedSpeciesName else null,
+        lastHealthCheck = information.lastHealthCheck,
+        lastIdentification = information.lastIdentification,
+        identifiedSpeciesName = information.identifiedSpeciesName,
         photos = information.photosList.map { photo ->
             PhotoEntity(
                 url = photo.url,
                 timestamp = photo.timestamp,
                 note = if (photo.hasNote()) photo.note else null
             )
-        }
+        },
+        lastHealthResult = information.lastHealthResult
     )
 } 

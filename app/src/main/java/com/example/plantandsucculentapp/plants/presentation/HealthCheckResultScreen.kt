@@ -1,9 +1,11 @@
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -25,44 +27,49 @@ import com.google.gson.JsonObject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HealthCheckResultScreen(
-    healthCheckResult: String,
-    onDismiss: () -> Unit
+    healthCheckResult: String?,
+    onClose: () -> Unit
 ) {
-    val healthData = try {
-        Gson().fromJson(healthCheckResult, JsonObject::class.java)
-    } catch (e: Exception) {
-        JsonObject().apply { addProperty("error", "Failed to parse health check data") }
+    if (healthCheckResult == null) {
+        return
     }
 
-    val healthAssessment = healthData.getAsJsonObject("health_assessment")
+        val healthData = Gson().fromJson(healthCheckResult, JsonObject::class.java)
+        val healthAssessment = healthData.getAsJsonObject("health_assessment")
+        
+        // Add null checks
+        val isHealthy = healthAssessment?.get("is_healthy")?.asBoolean ?: false
+        val probability = healthAssessment?.get("is_healthy_probability")?.asDouble ?: 0.0
+        val diseases = healthAssessment?.getAsJsonArray("diseases")?.map { disease ->
+            disease.asJsonObject
+        } ?: emptyList()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Health Check Results") },
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, "Close")
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Health Check Results") },
+                    navigationIcon = {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.Close, "Close")
+                        }
                     }
-                }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
-        ) {
-            // Overall Health Status
-            item {
-                HealthStatusCard(healthAssessment)
-                Spacer(modifier = Modifier.height(16.dp))
+                )
             }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+            ) {
+                // Overall Health Status
+                item {
+                    HealthStatusCard(isHealthy, probability)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
-            // Diseases Section
-            healthAssessment?.getAsJsonArray("diseases")?.let { diseases ->
-                if (diseases.size() > 0) {
+                // Diseases Section
+                if (diseases.isNotEmpty()) {
                     item {
                         Text(
                             "Detected Issues",
@@ -73,40 +80,22 @@ fun HealthCheckResultScreen(
                     }
 
                     // Disease Items
-                    diseases.forEach { disease ->
-                        item {
-                            DiseaseCard(disease.asJsonObject)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
+                    items(diseases) { disease ->
+                        DiseaseCard(disease)
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                }
-
-
-                // Similar Images Section
-                item {
-                    diseases?.firstOrNull()?.asJsonObject?.getAsJsonArray("similar_images")
-                        ?.let { images ->
-                            if (images.size() > 0) {
-                                Text(
-                                    "Similar Cases",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                SimilarImagesGrid(images)
-                            }
-                        }
                 }
             }
         }
-    }
 }
 
-@Composable
-private fun HealthStatusCard(healthData: JsonObject) {
-    val isHealthy = healthData.get("is_healthy")?.asBoolean ?: false
-    val probability = healthData.get("is_healthy_probability")?.asDouble ?: 0.0
+data class DiseaseInfo(
+    val name: String,
+    val probability: Double
+)
 
+@Composable
+private fun HealthStatusCard(isHealthy: Boolean, probability: Double) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -174,19 +163,22 @@ private fun HealthStatusCard(healthData: JsonObject) {
                 text = if (isHealthy) "Plant is Healthy" else "Issues Detected",
                 style = MaterialTheme.typography.titleLarge
             )
-            
-            // Show diseases summary if any
-            healthData.getAsJsonArray("diseases")?.let { diseases ->
-                val diseaseCount = diseases.size()
-                if (diseaseCount > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "$diseaseCount potential issues found",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+
+//            items(diseases) { disease ->
+//
+//            }
+//            // Show diseases summary if any
+//            diseases.getAsJsonArray("diseases")?.let { diseases ->
+//                val diseaseCount = diseases.size()
+//                if (diseaseCount > 0) {
+//                    Spacer(modifier = Modifier.height(8.dp))
+//                    Text(
+//                        text = "$diseaseCount potential issues found",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
+//                }
+//            }
         }
     }
 }

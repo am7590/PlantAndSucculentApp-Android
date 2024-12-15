@@ -42,7 +42,7 @@ class PlantsViewModel(
                 repository.addPlant(userId, plant)
                 fetchPlantList()
             } catch (e: Exception) {
-                // Handle error if needed
+                _plantsState.value = UiState.Error(e.message ?: "Failed to add plant")
             }
         }
     }
@@ -61,7 +61,6 @@ class PlantsViewModel(
     fun performHealthCheck(plant: PlantOuterClass.Plant) {
         viewModelScope.launch {
             try {
-                // Only allow health check if there's a photo and it hasn't been checked recently
                 val latestPhoto = plant.information.photosList.maxByOrNull { it.timestamp }
                 if (latestPhoto != null && shouldAllowHealthCheck(plant)) {
                     val result = repository.performHealthCheck(
@@ -70,17 +69,16 @@ class PlantsViewModel(
                         latestPhoto.url
                     )
                     _lastHealthCheckResult.value = result
-                    fetchPlantList() // Refresh to show updated health check timestamp
+                    fetchPlantList() // This will trigger the LaunchedEffect in TrendsScreen
                 }
             } catch (e: Exception) {
-                // Handle error
                 _lastHealthCheckResult.value = """{"error": "Failed to perform health check: ${e.message}"}"""
             }
         }
     }
 
     private fun shouldAllowHealthCheck(plant: PlantOuterClass.Plant): Boolean {
-        val lastHealthCheck = if (plant.information.hasLastHealthCheck()) {
+        val lastHealthCheck = if (true) {//if (plant.information.hasLastHealthCheck()) {
             plant.information.lastHealthCheck
         } else {
             0L

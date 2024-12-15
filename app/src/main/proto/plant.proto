@@ -64,12 +64,13 @@ message PlantIdentifier {
 }
 
 message PlantInformation {
-    optional string name = 1;
-    optional int64 lastWatered = 2;
-    optional int64 lastHealthCheck = 3;
-    optional int64 lastIdentification = 4;
-    optional string identifiedSpeciesName = 5;
+    string name = 1;
+    int64 last_watered = 2;
+    int64 last_health_check = 3;
+    int64 last_identification = 4;
+    string identified_species_name = 5;
     repeated PhotoEntry photos = 6;
+    string last_health_result = 7;
 }
 
 message PhotoEntry {
