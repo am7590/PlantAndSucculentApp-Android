@@ -119,7 +119,12 @@ fun TrendsContent(plants: List<PlantOuterClass.Plant>, repository: Repository) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(vertical = 90.dp, horizontal = 16.dp)
+            .padding(
+                top = 90.dp,
+                bottom = 0.dp,
+                start = 16.dp,
+                end = 16.dp
+            )
     ) {
         // Overall Health Summary
         item {
@@ -130,7 +135,7 @@ fun TrendsContent(plants: List<PlantOuterClass.Plant>, repository: Repository) {
         // Individual Plant Health Cards
         item {
             Text(
-                "Plant Health History",
+                "Plant Health",
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(8.dp))

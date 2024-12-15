@@ -27,15 +27,18 @@ class GrpcClient : GrpcClientInterface {
         .intercept(GrpcLoggingInterceptor())
         .build()
 
-    private val stub: PlantServiceGrpc.PlantServiceBlockingStub = PlantServiceGrpc.newBlockingStub(channel)
-        .withDeadlineAfter(30, TimeUnit.SECONDS)
+    private val baseStub: PlantServiceGrpc.PlantServiceBlockingStub = PlantServiceGrpc.newBlockingStub(channel)
         .withMaxInboundMessageSize(20 * 1024 * 1024)
         .withMaxOutboundMessageSize(20 * 1024 * 1024)
+
+    private fun getStub(): PlantServiceGrpc.PlantServiceBlockingStub {
+        return baseStub.withDeadlineAfter(30, TimeUnit.SECONDS)
+    }
 
     override fun registerOrGetUser(uuid: String): Result<PlantOuterClass.UserResponse> {
         return try {
             val request = PlantOuterClass.UserIdentifier.newBuilder().setUuid(uuid).build()
-            Result.success(stub.registerOrGetUser(request))
+            Result.success(getStub().registerOrGetUser(request))
         } catch (e: StatusException) {
             handleGrpcError(e, "registerOrGetUser")
         } catch (e: Exception) {
@@ -48,7 +51,7 @@ class GrpcClient : GrpcClientInterface {
             val request = PlantOuterClass.GetWateredRequest.newBuilder()
                 .setUuid(userId)
                 .build()
-            Result.success(stub.getWatered(request))
+            Result.success(getStub().getWatered(request))
         } catch (e: StatusException) {
             handleGrpcError(e, "getWatered")
         } catch (e: Exception) {
@@ -62,7 +65,7 @@ class GrpcClient : GrpcClientInterface {
                 .setUserId(userId)
                 .setPlant(plant)
                 .build()
-            Result.success(stub.add(request))
+            Result.success(getStub().add(request))
         } catch (e: StatusException) {
             handleGrpcError(e, "addPlant")
         } catch (e: Exception) {
@@ -81,7 +84,7 @@ class GrpcClient : GrpcClientInterface {
                 .setIdentifier(identifier)
                 .setInformation(information)
                 .build()
-            Result.success(stub.updatePlant(request))
+            Result.success(getStub().updatePlant(request))
         } catch (e: StatusException) {
             handleGrpcError(e, "updatePlant")
         } catch (e: Exception) {
@@ -166,7 +169,7 @@ class GrpcClient : GrpcClientInterface {
                 .build()
 
             Log.d(TAG, "Sending gRPC request")
-            val response = stub.saveHealthCheckData(request)
+            val response = getStub().saveHealthCheckData(request)
             Log.d(TAG, "Received health check response: ${response.status}")
             Result.success(response)
         } catch (e: Exception) {
@@ -213,7 +216,7 @@ class GrpcClient : GrpcClientInterface {
 
     override suspend fun saveHealthCheckData(request: PlantOuterClass.HealthCheckDataRequest): Result<PlantOuterClass.HealthCheckDataResponse> {
         return try {
-            Result.success(stub.saveHealthCheckData(request))
+            Result.success(getStub().saveHealthCheckData(request))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -221,7 +224,7 @@ class GrpcClient : GrpcClientInterface {
 
     override suspend fun getHealthCheckHistory(identifier: PlantOuterClass.PlantIdentifier): Result<PlantOuterClass.HealthCheckInformation> {
         return try {
-            Result.success(stub.healthCheckRequest(
+            Result.success(getStub().healthCheckRequest(
                 PlantOuterClass.HealthCheckRequestParam.newBuilder()
                     .setSku(identifier.sku)
                     .build()
