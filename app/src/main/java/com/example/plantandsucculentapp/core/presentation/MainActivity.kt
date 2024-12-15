@@ -1,11 +1,15 @@
 package com.example.plantandsucculentapp.core.presentation
 
 import HealthCheckResultScreen
+//import PlantIdentificationScreen
 import PlantsDetailScreen
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -39,15 +43,38 @@ import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import plant.PlantOuterClass
 import android.provider.Settings
+import androidx.annotation.RequiresApi
+import android.Manifest
 
 class MainActivity : ComponentActivity() {
     private val deviceId: String by lazy {
         Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
     }
 
+    private val requestPermissionLauncher: ActivityResultLauncher<Array<String>> = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions.all { it.value }) {
+            // Permissions granted, proceed with your operation
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Request permissions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissionLauncher.launch(arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES
+            ))
+        } else {
+            requestPermissionLauncher.launch(arrayOf(
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            ))
+        }
+
         setContent {
             PlantAndSucculentAppTheme {
                 val plantsViewModel: PlantsViewModel = koinViewModel()
@@ -57,6 +84,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
     val navController = rememberNavController()
@@ -140,6 +168,10 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                                         .build()
                                     plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
+//                                onIdentifySpecies = {
+//                                    plantsViewModel.identifyPlant(plant)
+//                                    navController.navigate("plantIdentification/${plant.identifier.sku}")
+//                                },
                                 onBack = { navController.popBackStack() }
                             )
                         }
@@ -167,6 +199,17 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                     )
                 }
             }
+//            composable("plantIdentification/{plantId}") { backStackEntry ->
+//                val plantId = backStackEntry.arguments?.getString("plantId")
+//                PlantIdentificationScreen(
+//                    viewModel = plantsViewModel,
+//                    onSpeciesSelected = { species ->
+//                        plantsViewModel.updatePlantSpecies(plantId!!, species)
+//                        navController.popBackStack()
+//                    },
+//                    onBack = { navController.popBackStack() }
+//                )
+//            }
         }
     }
 }

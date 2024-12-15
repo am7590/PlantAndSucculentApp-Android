@@ -8,7 +8,8 @@ import com.google.gson.reflect.TypeToken
 
 @Entity(tableName = "plants")
 data class PlantEntity(
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
     val sku: String,
     val deviceIdentifier: String,
     val name: String,
@@ -81,6 +82,7 @@ fun PlantEntity.toPlant(): PlantOuterClass.Plant {
 
 fun PlantOuterClass.Plant.toEntity(): PlantEntity {
     return PlantEntity(
+        id = 0L,
         sku = identifier.sku,
         deviceIdentifier = identifier.deviceIdentifier,
         name = information.name,

@@ -63,38 +63,40 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.roundToInt
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.koin.java.KoinJavaComponent.inject
 
 @RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun TrendsScreen(viewModel: PlantsViewModel) {
     val repository = koinInject<Repository>()
     val plantsState by viewModel.plantsState.collectAsState()
-    val healthCheckResult by viewModel.lastHealthCheckResult.collectAsState()
+    val scope = rememberCoroutineScope()
+    val database: PlantDatabase by inject(PlantDatabase::class.java)
 
-    // Refresh when screen becomes visible or after health check
-    LaunchedEffect(healthCheckResult) {
-        viewModel.fetchPlantList()
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Trends",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            )
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+//            .combinedClickable(
+//                onClick = { },
+//                onLongClick = {
+//                    scope.launch(Dispatchers.IO) {
+//                        database.clearAllTables()
+//                        viewModel.fetchPlantList()
+//                    }
+//                }
+//            )
     ) {
         when (plantsState) {
-            is UiState.Loading -> {
-                LoadingScreen()
-            }
             is UiState.Success -> {
                 val plants = (plantsState as UiState.Success).data
                 if (plants.isEmpty()) {
@@ -102,6 +104,9 @@ fun TrendsScreen(viewModel: PlantsViewModel) {
                 } else {
                     TrendsContent(plants, repository)
                 }
+            }
+            is UiState.Loading -> {
+                LoadingScreen()
             }
             is UiState.Error -> {
                 ErrorScreen(

@@ -3,7 +3,6 @@ package com.example.plantandsucculentapp.plants.data
 //import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import android.content.ContentValues.TAG
 import com.example.plantandsucculentapp.core.network.GrpcClientInterface
-import com.example.plantandsucculentapp.core.network.MockGrpcClient
 import com.example.plantandsucculentapp.core.util.NetworkException
 import com.example.plantandsucculentapp.plants.data.local.PlantDao
 import com.example.plantandsucculentapp.plants.data.local.toEntity
@@ -17,8 +16,8 @@ import java.net.UnknownHostException
 import android.content.SharedPreferences
 import com.example.plantandsucculentapp.plants.data.model.HealthCheckResponse
 import android.util.Log
-import com.example.plantandsucculentapp.plants.data.PlantHealthService
 import com.example.plantandsucculentapp.plants.data.local.HealthCheckEntity
+import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 
@@ -27,7 +26,8 @@ class PlantsRepositoryImpl(
     private val plantDao: PlantDao,
     private val isMockEnabled: Boolean,
     private val sharedPreferences: SharedPreferences,
-    private val healthService: PlantHealthService
+    private val healthService: PlantHealthService,
+    private val gson: Gson
 ) : Repository {
     private val healthCheckCache = mutableMapOf<String, HealthCheckResponse>()
     private val cacheKeyPrefix = "healthcheck_cache_"
@@ -238,4 +238,14 @@ class PlantsRepositoryImpl(
             e.printStackTrace()
         }
     }
+
+//    override suspend fun identifyPlant(photoUrl: String): PlantIdentificationResponse = withContext(Dispatchers.IO) {
+//        try {
+//            val jsonResponse = healthService.identifyPlant(photoUrl)
+//            gson.fromJson(jsonResponse, PlantIdentificationResponse::class.java)
+//        } catch (e: Exception) {
+//            Log.e(TAG, "Failed to identify plant", e)
+//            throw e
+//        }
+//    }
 }

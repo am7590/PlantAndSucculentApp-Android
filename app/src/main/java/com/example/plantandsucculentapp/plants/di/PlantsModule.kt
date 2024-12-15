@@ -16,6 +16,7 @@ import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
 import org.koin.android.ext.koin.androidContext
 import com.example.plantandsucculentapp.plants.data.PlantHealthService
 import com.example.plantandsucculentapp.plants.data.local.PlantHealthHistoryManager
+import com.google.gson.Gson
 
 //
 //val plantsModule = module {
@@ -84,7 +85,8 @@ val plantsModule = module {
                 "shared_prefs",
                 Context.MODE_PRIVATE
             ),
-            healthService = get()
+            healthService = get(),
+            gson = get()
         )
     }
 
@@ -93,4 +95,6 @@ val plantsModule = module {
     viewModel {
         PlantsViewModel(get())
     }
+
+    single { Gson() }
 }

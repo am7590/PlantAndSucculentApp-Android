@@ -1,5 +1,6 @@
 package com.example.plantandsucculentapp.plants.domain
 
+import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
 import plant.PlantOuterClass
 
 interface Repository {
@@ -17,4 +18,5 @@ interface Repository {
         latestPhotoUrl: String
     ): String
     suspend fun getHealthHistory(identifier: PlantOuterClass.PlantIdentifier): PlantOuterClass.HealthCheckInformation
+//    suspend fun identifyPlant(photoUrl: String): PlantIdentificationResponse
 }

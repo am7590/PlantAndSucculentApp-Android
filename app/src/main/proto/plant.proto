@@ -54,8 +54,9 @@ message RemovePlantRequest {
 }
 
 message Plant {
-    PlantIdentifier identifier = 1;
-    optional PlantInformation information = 2;
+    int64 id = 1;
+    PlantIdentifier identifier = 2;
+    optional PlantInformation information = 3;
 }
 
 message PlantIdentifier {

@@ -10,6 +10,7 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Base64
+import java.io.File
 
 private const val TAG = "PlantHealthService"
 private const val PLANT_ID_API_URL = "https://api.plant.id/v2/health_assessment"
@@ -69,4 +70,31 @@ class PlantHealthService(private val context: Context) {
             throw e
         }
     }
+
+//    suspend fun identifyPlant(imageUrl: String): String {
+//        val imageFile = File(imageUrl)
+//        val bytes = imageFile.readBytes()
+//        val base64Image = Base64.encodeToString(bytes, Base64.NO_WRAP)
+//
+//        val jsonPayload = buildString {
+//            append("{")
+//            append("\"api_key\":\"S6VUgIM03MvELLMGtMQBEpVuBvtaG0b0UOGoma3iT2oO2OuMYH\",")
+//            append("\"images\":[\"data:image/jpeg;base64,$base64Image\"],")
+//            append("\"plant_details\":[\"common_names\",\"url\",\"wiki_description\",\"taxonomy\"],")
+//            append("\"plant_language\":\"en\"")
+//            append("}")
+//        }
+//
+//        val requestBody = jsonPayload.toRequestBody("application/json".toMediaType())
+//
+//        val request = Request.Builder()
+//            .url("https://api.plant.id/v2/identify")
+//            .post(requestBody)
+//            .build()
+//
+//        return client.newCall(request).execute().use { response ->
+//            if (!response.isSuccessful) throw IOException("Unexpected code $response")
+//            response.body?.string() ?: throw IOException("Empty response body")
+//        }
+//    }
 } 
