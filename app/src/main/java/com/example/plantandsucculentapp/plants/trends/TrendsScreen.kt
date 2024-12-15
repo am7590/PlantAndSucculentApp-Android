@@ -86,15 +86,15 @@ fun TrendsScreen(viewModel: PlantsViewModel) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-//            .combinedClickable(
-//                onClick = { },
-//                onLongClick = {
-//                    scope.launch(Dispatchers.IO) {
-//                        database.clearAllTables()
-//                        viewModel.fetchPlantList()
-//                    }
-//                }
-//            )
+            .combinedClickable(
+                onClick = { },
+                onLongClick = {
+                    scope.launch(Dispatchers.IO) {
+                        database.clearAllTables()
+                        viewModel.fetchPlantList()
+                    }
+                }
+            )
     ) {
         when (plantsState) {
             is UiState.Success -> {

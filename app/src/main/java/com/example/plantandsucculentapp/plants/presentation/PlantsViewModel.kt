@@ -1,8 +1,10 @@
 package com.example.plantandsucculentapp.plants.presentation
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.plantandsucculentapp.core.presentation.util.UiState
+import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
 import com.example.plantandsucculentapp.plants.domain.Repository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +21,12 @@ class PlantsViewModel(
 
     private val _lastHealthCheckResult = MutableStateFlow<String?>(null)
     val lastHealthCheckResult: StateFlow<String?> = _lastHealthCheckResult.asStateFlow()
+
+    private val _identificationResult = MutableStateFlow<UiState<PlantIdentificationResponse>>(UiState.Loading)
+    val identificationResult = _identificationResult.asStateFlow()
+
+    var selectedSpecies: String? = null
+        internal set
 
     init {
         fetchPlantList()
@@ -91,5 +99,84 @@ class PlantsViewModel(
             .maxOfOrNull { it.timestamp } ?: 0L
             
         return lastHealthCheck == 0L || latestPhotoTimestamp > lastHealthCheck
+    }
+
+    fun identifyPlant(plant: PlantOuterClass.Plant, forceRefresh: Boolean = false) {
+        viewModelScope.launch {
+            try {
+                val latestPhoto = plant.information.photosList.maxByOrNull { it.timestamp }
+                if (latestPhoto != null) {
+                    _identificationResult.value = UiState.Loading
+                    val result = if (forceRefresh) {
+                        repository.identifyPlant(latestPhoto.url, skipCache = true)
+                    } else {
+                        repository.identifyPlant(latestPhoto.url)
+                    }
+                    Log.d("PlantsViewModel", "Got identification result: $result")
+
+                    if (!result.isPlant) {
+                        _identificationResult.value = UiState.Error("Image does not appear to be a plant")
+                        return@launch
+                    }
+
+                    if (result.suggestions.isEmpty()) {
+                        _identificationResult.value = UiState.Error("No plant species identified")
+                        return@launch
+                    }
+
+                    val validSuggestions = result.suggestions.filter { 
+                        !it.plantName.isNullOrBlank() && it.plantDetails != null 
+                    }
+
+                    if (validSuggestions.isEmpty()) {
+                        _identificationResult.value = UiState.Error("No valid plant species identified")
+                        return@launch
+                    }
+
+                    _identificationResult.value = UiState.Success(result.copy(suggestions = validSuggestions))
+                    
+                    val topSuggestion = validSuggestions[0]
+                    Log.d("PlantsViewModel", "Updating plant with top suggestion: ${topSuggestion.plantName}")
+                    val updatedInformation = plant.information.toBuilder()
+                        .setIdentifiedSpeciesName(topSuggestion.plantName)
+                        .setLastIdentification(System.currentTimeMillis())
+                        .build()
+                    updatePlant("user123", plant.identifier, updatedInformation)
+                } else {
+                    _identificationResult.value = UiState.Error("No photos available for identification")
+                }
+            } catch (e: Exception) {
+                Log.e("PlantsViewModel", "Failed to identify plant", e)
+                _identificationResult.value = UiState.Error(e.message ?: "Failed to identify plant")
+            }
+        }
+    }
+
+    fun retryIdentification() {
+        // Reset state to trigger recomposition
+        _identificationResult.value = UiState.Loading
+    }
+
+    fun addPhotoToPlant(sku: String, photoUrl: String) {
+        viewModelScope.launch {
+            try {
+                val currentPlant = (plantsState.value as? UiState.Success)?.data
+                    ?.find { it.identifier.sku == sku } ?: return@launch
+
+                val newPhoto = PlantOuterClass.PhotoEntry.newBuilder()
+                    .setUrl(photoUrl)
+                    .setTimestamp(System.currentTimeMillis())
+                    .setNote("Added photo")
+                    .build()
+
+                val updatedInformation = currentPlant.information.toBuilder()
+                    .addPhotos(newPhoto)
+                    .build()
+
+                updatePlant("user123", currentPlant.identifier, updatedInformation)
+            } catch (e: Exception) {
+                Log.e("PlantsViewModel", "Failed to add photo", e)
+            }
+        }
     }
 }

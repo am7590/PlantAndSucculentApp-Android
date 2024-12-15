@@ -239,13 +239,19 @@ class PlantsRepositoryImpl(
         }
     }
 
-//    override suspend fun identifyPlant(photoUrl: String): PlantIdentificationResponse = withContext(Dispatchers.IO) {
-//        try {
-//            val jsonResponse = healthService.identifyPlant(photoUrl)
-//            gson.fromJson(jsonResponse, PlantIdentificationResponse::class.java)
-//        } catch (e: Exception) {
-//            Log.e(TAG, "Failed to identify plant", e)
-//            throw e
-//        }
-//    }
+    override suspend fun identifyPlant(photoUrl: String, skipCache: Boolean): PlantIdentificationResponse = withContext(Dispatchers.IO) {
+        try {
+            val jsonResponse = if (skipCache) {
+                // Pass a unique cache key to force a new request
+                val uniqueUrl = "$photoUrl?t=${System.currentTimeMillis()}"
+                healthService.identifyPlant(uniqueUrl)
+            } else {
+                healthService.identifyPlant(photoUrl)
+            }
+            gson.fromJson(jsonResponse, PlantIdentificationResponse::class.java)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to identify plant", e)
+            throw e
+        }
+    }
 }

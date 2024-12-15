@@ -1,6 +1,7 @@
 package com.example.plantandsucculentapp.core.presentation
 
 import HealthCheckResultScreen
+import PlantIdentificationDetailScreen
 //import PlantIdentificationScreen
 import PlantsDetailScreen
 import android.os.Build
@@ -45,17 +46,44 @@ import plant.PlantOuterClass
 import android.provider.Settings
 import androidx.annotation.RequiresApi
 import android.Manifest
+import android.annotation.SuppressLint
+import androidx.navigation.navArgument
+import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationScreen
+import android.widget.Toast
+import android.net.Uri
+import android.content.Intent
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     private val deviceId: String by lazy {
         Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
     }
 
-    private val requestPermissionLauncher: ActivityResultLauncher<Array<String>> = registerForActivityResult(
+    private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        if (permissions.all { it.value }) {
-            // Permissions granted, proceed with your operation
+        val allGranted = permissions.entries.all { it.value }
+        if (!allGranted) {
+            Toast.makeText(
+                this,
+                "Photo permissions are required for plant identification",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    fun takePersistablePermission(uri: Uri) {
+        try {
+            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            contentResolver.takePersistableUriPermission(uri, takeFlags)
+            Log.d(TAG, "Successfully took persistable permission for URI: $uri")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Failed to take persistable permission for URI: $uri", e)
         }
     }
 
@@ -64,15 +92,20 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Request permissions
+        // Request permissions based on Android version
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestPermissionLauncher.launch(arrayOf(
-                Manifest.permission.READ_MEDIA_IMAGES
-            ))
+            requestPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+                )
+            )
         } else {
-            requestPermissionLauncher.launch(arrayOf(
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            ))
+            requestPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                )
+            )
         }
 
         setContent {
@@ -84,6 +117,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@SuppressLint("StateFlowValueCalledInComposition")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
@@ -168,10 +202,12 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                                         .build()
                                     plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
                                 },
-//                                onIdentifySpecies = {
-//                                    plantsViewModel.identifyPlant(plant)
-//                                    navController.navigate("plantIdentification/${plant.identifier.sku}")
-//                                },
+                                onIdentifyPlant = {
+                                    plantsViewModel.identifyPlant(plant)
+                                    navController.navigate("plantIdentification/${plant.identifier.sku}")
+                                },
+                                sku = plant.identifier.sku,
+                                viewModel = plantsViewModel,
                                 onBack = { navController.popBackStack() }
                             )
                         }
@@ -199,17 +235,59 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                     )
                 }
             }
-//            composable("plantIdentification/{plantId}") { backStackEntry ->
-//                val plantId = backStackEntry.arguments?.getString("plantId")
-//                PlantIdentificationScreen(
-//                    viewModel = plantsViewModel,
-//                    onSpeciesSelected = { species ->
-//                        plantsViewModel.updatePlantSpecies(plantId!!, species)
-//                        navController.popBackStack()
-//                    },
-//                    onBack = { navController.popBackStack() }
-//                )
-//            }
+            composable(
+                route = "plantIdentification/{sku}",
+                arguments = listOf(navArgument("sku") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
+                val currentPlant = (plantsViewModel.plantsState.value as? UiState.Success)?.data
+                    ?.find { it.identifier.sku == sku } ?: return@composable
+                
+                PlantIdentificationScreen(
+                    viewModel = plantsViewModel,
+                    onSpeciesSelected = { species ->
+                        plantsViewModel.selectedSpecies = species
+                        navController.navigate("identificationDetail/$sku")
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "identificationDetail/{sku}",
+                arguments = listOf(navArgument("sku") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
+                val identificationResult = plantsViewModel.identificationResult.value
+                
+                if (identificationResult is UiState.Success) {
+                    val selectedSpecies = plantsViewModel.selectedSpecies
+                    val suggestion = identificationResult.data.suggestions.find { 
+                        it.plantName == selectedSpecies 
+                    } ?: return@composable
+                    
+                    PlantIdentificationDetailScreen(
+                        suggestion = suggestion,
+                        onConfirm = {
+                            // Update plant with selected species
+                            val currentPlant = (plantsViewModel.plantsState.value as? UiState.Success)?.data
+                                ?.find { it.identifier.sku == sku } ?: return@PlantIdentificationDetailScreen
+                            
+                            val updatedInformation = currentPlant.information.toBuilder()
+                                .setIdentifiedSpeciesName(suggestion.plantName)
+                                .setLastIdentification(System.currentTimeMillis())
+                                .build()
+                            
+                            plantsViewModel.updatePlant(
+                                "user123",
+                                currentPlant.identifier,
+                                updatedInformation
+                            )
+                            navController.popBackStack("plantDetail/$sku", inclusive = false)
+                        },
+                        onDismiss = { navController.popBackStack() }
+                    )
+                }
+            }
         }
     }
 }

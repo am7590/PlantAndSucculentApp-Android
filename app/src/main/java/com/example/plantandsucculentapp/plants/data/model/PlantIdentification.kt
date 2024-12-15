@@ -7,7 +7,7 @@ data class PlantIdentificationResponse(
 )
 
 data class PlantSuggestion(
-    val id: Int,
+    val id: Long,
     val plantName: String,
     val probability: Double,
     val plantDetails: PlantDetails

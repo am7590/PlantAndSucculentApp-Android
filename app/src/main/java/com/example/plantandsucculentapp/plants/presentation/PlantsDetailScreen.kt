@@ -57,11 +57,24 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material.icons.filled.Search
+import android.content.Intent
+import android.util.Log
+import android.widget.Toast
+import com.example.plantandsucculentapp.core.presentation.MainActivity
+import java.io.File
+import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
+import android.content.pm.PackageManager
+import android.provider.MediaStore
+import androidx.activity.ComponentActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlantsDetailScreen(
     plant: PlantOuterClass.Plant,
+    sku: String,
+    viewModel: PlantsViewModel,
+    onIdentifyPlant: () -> Unit,
     onWaterPlant: () -> Unit,
     onHealthCheck: () -> Unit,
     onAddPhoto: (String) -> Unit,
@@ -89,7 +102,9 @@ fun PlantsDetailScreen(
             item {
                 PlantImageSection(
                     photos = plant.information.photosList,
-                    onAddPhoto = onAddPhoto
+                    onAddPhoto = { photoUrl -> 
+                        viewModel.addPhotoToPlant(sku, photoUrl)
+                    }
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -99,7 +114,8 @@ fun PlantsDetailScreen(
                 PlantActionsSection(
                     plant = plant,
                     onWaterPlant = onWaterPlant,
-                    onHealthCheck = onHealthCheck
+                    onHealthCheck = onHealthCheck,
+                    onIdentifySpecies = onIdentifyPlant
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -135,12 +151,35 @@ private fun PlantImageSection(
     onAddPhoto: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? ComponentActivity
+    
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         uri?.let {
-            val imagePath = saveImageToInternalStorage(context, uri)
-            imagePath?.let { onAddPhoto(it) }
+            try {
+                // Take persistable URI permission
+                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(uri, takeFlags)
+
+                // Copy to app's internal storage
+                val fileName = "plant_photo_${System.currentTimeMillis()}.jpg"
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    context.openFileOutput(fileName, Context.MODE_PRIVATE).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                val internalPath = context.getFileStreamPath(fileName).absolutePath
+                onAddPhoto(internalPath)
+            } catch (e: Exception) {
+                Log.e("PlantDetailScreen", "Failed to save photo", e)
+                Toast.makeText(
+                    context,
+                    "Failed to save photo. Please try again.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 
@@ -162,8 +201,13 @@ private fun PlantImageSection(
                         state = pagerState,
                         modifier = Modifier.weight(1f)
                     ) { page ->
+                        val photoUrl = photos[page].url
                         AsyncImage(
-                            model = photos[page].url,
+                            model = when {
+                                photoUrl.startsWith("/") -> File(photoUrl)
+                                photoUrl.startsWith("file://") -> File(photoUrl.removePrefix("file://"))
+                                else -> photoUrl
+                            },
                             contentDescription = "Plant photo ${page + 1}",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
@@ -213,7 +257,9 @@ private fun PlantImageSection(
             FloatingActionButton(
                 onClick = {
                     photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        PickVisualMediaRequest(
+                            mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly
+                        )
                     )
                 },
                 modifier = Modifier
@@ -286,7 +332,8 @@ private fun PlantInfoSection(plant: PlantOuterClass.Plant) {
 private fun PlantActionsSection(
     plant: PlantOuterClass.Plant,
     onWaterPlant: () -> Unit,
-    onHealthCheck: () -> Unit
+    onHealthCheck: () -> Unit,
+    onIdentifySpecies: () -> Unit,
 ) {
     val canPerformHealthCheck = plant.information.photosList.isNotEmpty() && 
         (plant.information.lastHealthCheck == 0L || 
@@ -314,6 +361,19 @@ private fun PlantActionsSection(
             Spacer(Modifier.width(8.dp))
             Text("Health Check")
         }
+
+        Button(
+            onClick = onIdentifySpecies,
+            enabled = plant.information.photosList.isNotEmpty(),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Identify Species"
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Identify Species")
+        }
     }
 }
 
@@ -329,8 +389,13 @@ private fun PhotoHistoryItem(photo: PlantOuterClass.PhotoEntry) {
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val photoUrl = photo.url
             AsyncImage(
-                model = photo.url,
+                model = when {
+                    photoUrl.startsWith("/") -> File(photoUrl)
+                    photoUrl.startsWith("file://") -> File(photoUrl.removePrefix("file://"))
+                    else -> photoUrl
+                },
                 contentDescription = "Historical plant photo",
                 modifier = Modifier
                     .size(60.dp)
