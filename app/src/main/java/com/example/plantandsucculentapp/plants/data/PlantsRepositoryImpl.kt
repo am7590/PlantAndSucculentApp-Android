@@ -26,7 +26,7 @@ class PlantsRepositoryImpl(
     private val plantDao: PlantDao,
     private val isMockEnabled: Boolean,
     private val sharedPreferences: SharedPreferences,
-    private val healthService: PlantHealthService,
+    val healthService: PlantHealthService,
     private val gson: Gson
 ) : Repository {
     private val healthCheckCache = mutableMapOf<String, HealthCheckResponse>()
@@ -242,13 +242,16 @@ class PlantsRepositoryImpl(
     override suspend fun identifyPlant(photoUrl: String, skipCache: Boolean): PlantIdentificationResponse = withContext(Dispatchers.IO) {
         try {
             val jsonResponse = if (skipCache) {
-                // Pass a unique cache key to force a new request
                 val uniqueUrl = "$photoUrl?t=${System.currentTimeMillis()}"
                 healthService.identifyPlant(uniqueUrl)
             } else {
                 healthService.identifyPlant(photoUrl)
             }
-            gson.fromJson(jsonResponse, PlantIdentificationResponse::class.java)
+            
+            Log.d(TAG, "Parsing JSON response: $jsonResponse")
+            val response = gson.fromJson(jsonResponse, PlantIdentificationResponse::class.java)
+            Log.d(TAG, "Parsed response: $response")
+            response
         } catch (e: Exception) {
             Log.e(TAG, "Failed to identify plant", e)
             throw e

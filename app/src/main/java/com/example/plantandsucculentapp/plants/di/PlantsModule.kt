@@ -1,55 +1,21 @@
 package com.example.plantandsucculentapp.plants.di
 
-//import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import android.content.Context
+import androidx.room.Room
+import com.example.plantandsucculentapp.BuildConfig
 import com.example.plantandsucculentapp.core.network.GrpcClient
 import com.example.plantandsucculentapp.core.network.GrpcClientInterface
 import com.example.plantandsucculentapp.core.network.MockGrpcClient
+import com.example.plantandsucculentapp.plants.data.PlantHealthService
 import com.example.plantandsucculentapp.plants.data.PlantsRepositoryImpl
+import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
+import com.example.plantandsucculentapp.plants.data.local.PlantHealthHistoryManager
 import com.example.plantandsucculentapp.plants.domain.Repository
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
+import com.google.gson.Gson
+import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.dsl.module
-import com.example.plantandsucculentapp.BuildConfig
-import androidx.room.Room
-import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
-import org.koin.android.ext.koin.androidContext
-import com.example.plantandsucculentapp.plants.data.PlantHealthService
-import com.example.plantandsucculentapp.plants.data.local.PlantHealthHistoryManager
-import com.google.gson.Gson
-
-//
-//val plantsModule = module {
-//    single {
-//        Retrofit.Builder()
-//            .addConverterFactory(GsonConverterFactory.create())
-//            .baseUrl(grpcApi.BASE_URL)
-//            .build()
-//            .create(grpcApi::class.java)
-//    }
-//
-//    single<Repository>(qualifier = named("PlantsViewModelRepositoryImpl")) {
-//        PlantsRepositoryImpl(get())
-//    }
-//
-//    viewModel {
-//        PlantsViewModel(get(named("PlantsViewModelRepositoryImpl")))
-//    }
-//}
-
-
-
-//val plantsModule = module {
-//    single { MockGrpcClient() }
-//
-//    single<Repository>(qualifier = named("PlantsViewModelRepositoryImpl")) {
-//        PlantsRepositoryImpl(get())
-//    }
-//
-//    viewModel {
-//        PlantsViewModel(get(named("PlantsViewModelRepositoryImpl")))
-//    }
-//}
 
 val plantsModule = module {
     single {
@@ -92,9 +58,12 @@ val plantsModule = module {
 
     single { PlantHealthHistoryManager(get()) }
 
-    viewModel {
-        PlantsViewModel(get())
-    }
-
     single { Gson() }
+
+    viewModel { 
+        PlantsViewModel(
+            repository = get(),
+            database = get()
+        )
+    }
 }

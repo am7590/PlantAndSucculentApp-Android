@@ -15,6 +15,7 @@ import android.content.Intent
 import java.util.concurrent.TimeUnit
 import android.provider.MediaStore
 import android.content.pm.PackageManager
+import java.util.Date
 
 private const val TAG = "PlantHealthService"
 private const val PLANT_ID_API_URL = "https://api.plant.id/v2/health_assessment"
@@ -79,28 +80,25 @@ class PlantHealthService(private val context: Context) {
 
     suspend fun identifyPlant(imageUrl: String, skipCache: Boolean = false): String = withContext(Dispatchers.IO) {
         try {
-            // Check cache first (unless skipCache is true)
-            val cacheKey = "$IDENTIFICATION_CACHE_PREFIX${imageUrl.hashCode()}"
+            // Temporarily disable cache
+            // val cacheKey = "$IDENTIFICATION_CACHE_PREFIX${imageUrl.hashCode()}"
+            // if (!skipCache) {
+            //     val cachedResult = sharedPreferences.getString(cacheKey, null)
+            //     val cacheTimestamp = sharedPreferences.getLong("${cacheKey}_timestamp", 0)
+            //     val cacheAge = System.currentTimeMillis() - cacheTimestamp
+            //     
+            //     if (cachedResult != null && cacheAge < TimeUnit.HOURS.toMillis(1)) {
+            //         Log.d(TAG, "Using cached identification result from ${Date(cacheTimestamp)}")
+            //         return@withContext cachedResult
+            //     }
+            // }
             
-            if (!skipCache) {
-                // Only use cache if it's less than 1 hour old
-                val cachedResult = sharedPreferences.getString(cacheKey, null)
-                val cacheTimestamp = sharedPreferences.getLong("${cacheKey}_timestamp", 0)
-                val cacheAge = System.currentTimeMillis() - cacheTimestamp
-                
-                if (cachedResult != null && cacheAge < TimeUnit.HOURS.toMillis(1)) {
-                    Log.d(TAG, "Returning cached identification result")
-                    return@withContext cachedResult
-                }
-            }
-            
-            Log.d(TAG, "Making new identification request for: $imageUrl")
+            Log.d(TAG, "Making new identification request for image: $imageUrl")
             
             val photoBytes = when {
                 imageUrl.startsWith("content://") -> {
                     val uri = Uri.parse(imageUrl)
                     try {
-                        // First try to read directly
                         context.contentResolver.openInputStream(uri)?.use { 
                             it.readBytes() 
                         } ?: throw IOException("Failed to open photo URI")
@@ -115,7 +113,6 @@ class PlantHealthService(private val context: Context) {
                             }
                         }
                         
-                        // Read from our internal copy
                         internalFile.readBytes().also {
                             internalFile.delete() // Clean up
                         }
@@ -148,17 +145,46 @@ class PlantHealthService(private val context: Context) {
                 response.body?.string() ?: throw IOException("Empty response body")
             }
 
-            // Cache the result with timestamp
-            sharedPreferences.edit()
-                .putString(cacheKey, result)
-                .putLong("${cacheKey}_timestamp", System.currentTimeMillis())
-                .apply()
-            Log.d(TAG, "Cached new identification result")
+            // Log full response for debugging
+            Log.d(TAG, "Raw API response: $result")
+
+            // Don't cache for now
+            // sharedPreferences.edit()
+            //     .putString(cacheKey, result)
+            //     .putLong("${cacheKey}_timestamp", System.currentTimeMillis())
+            //     .apply()
+            // Log.d(TAG, "Cached new identification result")
 
             result
         } catch (e: Exception) {
             Log.e(TAG, "Plant identification failed", e)
             throw e
+        }
+    }
+
+    suspend fun clearCache() {
+        withContext(Dispatchers.IO) {
+            try {
+                // Clear shared preferences cache
+                sharedPreferences.edit().clear().apply()
+                
+                // Clear cached files from internal storage
+                context.filesDir.listFiles()?.forEach { file ->
+                    if (file.name.startsWith("plant_photo_") || 
+                        file.name.startsWith("temp_")) {
+                        file.delete()
+                    }
+                }
+                
+                // Clear cache directory
+                context.cacheDir.listFiles()?.forEach { file ->
+                    file.delete()
+                }
+                
+                Log.d(TAG, "Successfully cleared all caches")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear cache", e)
+            }
         }
     }
 } 

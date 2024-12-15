@@ -1,27 +1,32 @@
 package com.example.plantandsucculentapp.plants.data.model
 
+import com.google.gson.annotations.SerializedName
+
 data class PlantIdentificationResponse(
     val suggestions: List<PlantSuggestion>,
-    val isPlant: Boolean,
-    val isPlantProbability: Double
+    @SerializedName("is_plant") val isPlant: Boolean,
+    @SerializedName("is_plant_probability") val isPlantProbability: Double
 )
 
 data class PlantSuggestion(
     val id: Long,
-    val plantName: String,
+    @SerializedName("plant_name") val plantName: String,
     val probability: Double,
-    val plantDetails: PlantDetails
+    @SerializedName("plant_details") val plantDetails: PlantDetails
 )
 
 data class PlantDetails(
-    val commonNames: List<String>,
+    @SerializedName("common_names") val commonNames: List<String>,
     val url: String,
-    val wikiDescription: WikiDescription,
+    @SerializedName("wiki_description") val wikiDescription: WikiDescription,
     val taxonomy: Taxonomy
 )
 
 data class WikiDescription(
-    val value: String
+    val value: String,
+    val citation: String,
+    @SerializedName("license_name") val licenseName: String,
+    @SerializedName("license_url") val licenseUrl: String
 )
 
 data class Taxonomy(
@@ -29,5 +34,6 @@ data class Taxonomy(
     val family: String,
     val order: String,
     val phylum: String,
-    val kingdom: String
+    val kingdom: String,
+    @SerializedName("class") val taxonomyClass: String
 ) 

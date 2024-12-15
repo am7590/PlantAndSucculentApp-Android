@@ -4,8 +4,11 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.plantandsucculentapp.core.presentation.util.UiState
+import com.example.plantandsucculentapp.plants.data.PlantsRepositoryImpl
+import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
 import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
 import com.example.plantandsucculentapp.plants.domain.Repository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +16,8 @@ import kotlinx.coroutines.launch
 import plant.PlantOuterClass
 
 class PlantsViewModel(
-    private val repository: Repository
+    private val repository: Repository,
+    private val database: PlantDatabase
 ) : ViewModel() {
 
     private val _plantsState = MutableStateFlow<UiState<List<PlantOuterClass.Plant>>>(UiState.Loading)
@@ -114,34 +118,36 @@ class PlantsViewModel(
                     }
                     Log.d("PlantsViewModel", "Got identification result: $result")
 
-                    if (!result.isPlant) {
-                        _identificationResult.value = UiState.Error("Image does not appear to be a plant")
-                        return@launch
-                    }
-
-                    if (result.suggestions.isEmpty()) {
-                        _identificationResult.value = UiState.Error("No plant species identified")
-                        return@launch
-                    }
-
+                    // First check if we have valid suggestions
                     val validSuggestions = result.suggestions.filter { 
                         !it.plantName.isNullOrBlank() && it.plantDetails != null 
                     }
 
-                    if (validSuggestions.isEmpty()) {
-                        _identificationResult.value = UiState.Error("No valid plant species identified")
-                        return@launch
+                    when {
+                        // If we have valid suggestions, use them regardless of isPlant flag
+                        validSuggestions.isNotEmpty() -> {
+                            _identificationResult.value = UiState.Success(result.copy(suggestions = validSuggestions))
+                            val topSuggestion = validSuggestions[0]
+                            Log.d("PlantsViewModel", "Updating plant with top suggestion: ${topSuggestion.plantName}")
+                            val updatedInformation = plant.information.toBuilder()
+                                .setIdentifiedSpeciesName(topSuggestion.plantName)
+                                .setLastIdentification(System.currentTimeMillis())
+                                .build()
+                            updatePlant("user123", plant.identifier, updatedInformation)
+                        }
+                        // If API says it's not a plant with high confidence
+                        !result.isPlant && result.isPlantProbability < 0.3 -> {
+                            _identificationResult.value = UiState.Error("Image does not appear to be a plant (${(result.isPlantProbability * 100).toInt()}% confidence)")
+                        }
+                        // If we have suggestions but they're not valid
+                        result.suggestions.isNotEmpty() -> {
+                            _identificationResult.value = UiState.Error("Could not determine plant species. Please try with a clearer photo.")
+                        }
+                        // No suggestions at all
+                        else -> {
+                            _identificationResult.value = UiState.Error("No plant species identified. Please try again with a different photo.")
+                        }
                     }
-
-                    _identificationResult.value = UiState.Success(result.copy(suggestions = validSuggestions))
-                    
-                    val topSuggestion = validSuggestions[0]
-                    Log.d("PlantsViewModel", "Updating plant with top suggestion: ${topSuggestion.plantName}")
-                    val updatedInformation = plant.information.toBuilder()
-                        .setIdentifiedSpeciesName(topSuggestion.plantName)
-                        .setLastIdentification(System.currentTimeMillis())
-                        .build()
-                    updatePlant("user123", plant.identifier, updatedInformation)
                 } else {
                     _identificationResult.value = UiState.Error("No photos available for identification")
                 }
@@ -176,6 +182,31 @@ class PlantsViewModel(
                 updatePlant("user123", currentPlant.identifier, updatedInformation)
             } catch (e: Exception) {
                 Log.e("PlantsViewModel", "Failed to add photo", e)
+            }
+        }
+    }
+
+    fun clearAllData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Clear database
+                database.clearAllTables()
+                
+                // Clear identification cache and files
+                (repository as? PlantsRepositoryImpl)?.let { repo ->
+                    repo.healthService.clearCache()
+                }
+                
+                // Reset states
+                _identificationResult.value = UiState.Loading
+                _lastHealthCheckResult.value = null
+                
+                // Refresh data
+                fetchPlantList()
+                
+                Log.d("PlantsViewModel", "Successfully cleared all data")
+            } catch (e: Exception) {
+                Log.e("PlantsViewModel", "Failed to clear data", e)
             }
         }
     }
