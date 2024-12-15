@@ -116,10 +116,10 @@ message HealthCheckInformation {
 }
 
 message HistoricalProbabilities {
-    repeated Probabilities probabilities = 1;
+    repeated Probability probabilities = 1;
 }
 
-message Probabilities {
+message Probability {
     string id = 1;
     string name = 2;
     double probability = 3;

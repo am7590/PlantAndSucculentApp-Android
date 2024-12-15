@@ -21,6 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,13 +45,20 @@ import java.util.*
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import com.example.plantandsucculentapp.plants.data.local.HealthCheckEntity
 import com.example.plantandsucculentapp.plants.data.local.toEntity
 import com.example.plantandsucculentapp.plants.trends.components.EmptyTrendsScreen
+import com.example.plantandsucculentapp.plants.data.local.PlantHealthHistoryManager
+import com.example.plantandsucculentapp.plants.domain.Repository
+import org.koin.compose.koinInject
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TrendsScreen(viewModel: PlantsViewModel) {
+    val repository = koinInject<Repository>()
     val plantsState by viewModel.plantsState.collectAsState()
     val healthCheckResult by viewModel.lastHealthCheckResult.collectAsState()
 
@@ -79,7 +89,7 @@ fun TrendsScreen(viewModel: PlantsViewModel) {
                 if (plants.isEmpty()) {
                     EmptyTrendsScreen()
                 } else {
-                    TrendsContent(plants)
+                    TrendsContent(plants, repository)
                 }
             }
             is UiState.Error -> {
@@ -93,7 +103,7 @@ fun TrendsScreen(viewModel: PlantsViewModel) {
 }
 
 @Composable
-fun TrendsContent(plants: List<PlantOuterClass.Plant>) {
+fun TrendsContent(plants: List<PlantOuterClass.Plant>, repository: Repository) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -101,7 +111,7 @@ fun TrendsContent(plants: List<PlantOuterClass.Plant>) {
     ) {
         // Overall Health Summary
         item {
-            OverallHealthCard(plants)
+            OverallHealthCard(plants, repository)
             Spacer(modifier = Modifier.height(16.dp))
         }
 
@@ -115,44 +125,29 @@ fun TrendsContent(plants: List<PlantOuterClass.Plant>) {
         }
 
         items(plants) { plant ->
-            PlantHealthCard(plant)
+            PlantHealthCard(plant, repository)
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun OverallHealthCard(plants: List<PlantOuterClass.Plant>) {
-    // Consider a plant "health checked" if it has a timestamp after 2023
+private fun OverallHealthCard(plants: List<PlantOuterClass.Plant>, repository: Repository) {
     val minValidTimestamp = 1672531200000 // Jan 1, 2023 in milliseconds
+    var averageHealth by remember { mutableStateOf(0.0) }
     
-    val healthyPlants = plants.count { 
-        it.information.lastHealthCheck > minValidTimestamp
-    }
-    
-    // Add detailed logging for each plant's health calculation
-    plants.forEach { plant ->
-        Log.d("TrendsScreen", """
-            Plant: ${plant.identifier.sku}
-            LastHealthCheck: ${plant.information.lastHealthCheck}
-            LastHealthResult: ${plant.information.lastHealthResult}
-            Raw calculation result: ${calculateHealthPercentage(plant)}
-        """.trimIndent())
-    }
-    
-    val averageHealth = plants
-        .filter { 
-            it.information.lastHealthCheck > minValidTimestamp
+    // Calculate average health when the card is first shown
+    LaunchedEffect(plants) {
+        val healthScores = plants
+            .filter { it.information.lastHealthCheck > minValidTimestamp }
+            .map { calculateHealthPercentage(it, repository) }
+        
+        averageHealth = if (healthScores.isNotEmpty()) {
+            healthScores.average()
+        } else {
+            0.0
         }
-        .map { calculateHealthPercentage(it) }
-        .also { scores ->
-            Log.d("TrendsScreen", "All health scores before averaging: $scores")
-        }
-        .takeIf { it.isNotEmpty() }
-        ?.average()
-        ?: 0.0
-
-    Log.d("TrendsScreen", "Final average health: $averageHealth")
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -193,7 +188,7 @@ private fun OverallHealthCard(plants: List<PlantOuterClass.Plant>) {
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                     Text(
-                        "$healthyPlants",
+                        "${plants.count { it.information.lastHealthCheck > minValidTimestamp }}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -216,101 +211,118 @@ private fun OverallHealthCard(plants: List<PlantOuterClass.Plant>) {
 }
 
 @Composable
-private fun PlantHealthCard(plant: PlantOuterClass.Plant) {
+private fun PlantHealthCard(
+    plant: PlantOuterClass.Plant,
+    repository: Repository
+) {
+    val entity = plant.toEntity()
+    var currentHealth by remember { mutableStateOf(0.0) }
+
+    // Calculate health when the card is first shown
+    LaunchedEffect(plant.identifier.sku) {
+        currentHealth = calculateHealthPercentage(plant, repository) / 100.0 // Convert from percentage to decimal
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp)
         ) {
-            // Plant Image
-            AsyncImage(
-                model = plant.information.photosList.maxByOrNull { it.timestamp }?.url,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
-            
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    plant.information.name,
-                    style = MaterialTheme.typography.titleMedium
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Plant Image
+                AsyncImage(
+                    model = plant.information.photosList.maxByOrNull { it.timestamp }?.url,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
                 )
                 
+                Spacer(modifier = Modifier.width(16.dp))
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        plant.information.name,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    
+                    Text(
+                        "Health: ${(currentHealth * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = when {
+                            currentHealth >= 0.8 -> Color.Green
+                            currentHealth >= 0.6 -> Color.Yellow
+                            else -> Color.Red
+                        }
+                    )
+                    
+                    Text(
+                        "Last checked: ${formatDate(plant.information.lastHealthCheck)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            if (entity.healthCheckHistory.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "Last checked: ${formatDate(plant.information.lastHealthCheck)}",
+                    "Health History",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            
-            val healthScore = calculateHealthPercentage(plant)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(40.dp)
-            ) {
-                CircularProgressIndicator(
-                    progress = (healthScore / 100f).toFloat(),
-                    modifier = Modifier.size(40.dp),
-                    strokeWidth = 4.dp,
-                    color = if (healthScore >= 0)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.error
-                )
-                Text(
-                    text = "${healthScore.toInt()}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (healthScore >= 0)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.error
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    entity.healthCheckHistory
+                        .sortedBy { it.timestamp }
+                        .takeLast(5)  // Show last 5 checks
+                        .forEach { healthCheck ->
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(
+                                        color = when {
+                                            healthCheck.probability >= 0.8 -> Color.Green
+                                            healthCheck.probability >= 0.6 -> Color.Yellow
+                                            else -> Color.Red
+                                        }.copy(alpha = 0.6f),
+                                        shape = CircleShape
+                                    )
+                            )
+                        }
+                }
             }
         }
     }
 }
 
-private fun calculateHealthPercentage(plant: PlantOuterClass.Plant): Double {
-    val entity = plant.toEntity()
-    Log.d("TrendsScreen", """
-        Calculating health for plant: ${plant.identifier.sku}
-        Entity data:
-        - LastHealthCheck: ${entity.lastHealthCheck}
-        - LastHealthResult length: ${entity.lastHealthResult?.length}
-        - LastHealthResult: ${entity.lastHealthResult}
-        Proto data:
-        - LastHealthCheck: ${plant.information.lastHealthCheck}
-        - LastHealthResult: ${plant.information.lastHealthResult}
-    """.trimIndent())
+private suspend fun calculateHealthPercentage(
+    plant: PlantOuterClass.Plant,
+    repository: Repository
+): Double {
+    try {
+        // Get health history from server using repository
+        val healthHistory = repository.getHealthHistory(plant.identifier)
+            .historicalProbabilities
+            .probabilitiesList
+            .maxByOrNull { it.date }
 
-    val healthResult = entity.lastHealthResult
-    if (!healthResult.isNullOrEmpty()) {
-        try {
-            val healthData = Gson().fromJson(healthResult, JsonObject::class.java)
-            Log.d("TrendsScreen", "Parsed health data: $healthData")
-            
-            val healthAssessment = healthData.getAsJsonObject("health_assessment")
-            if (healthAssessment != null) {
-                val probability = healthAssessment.get("is_healthy_probability")?.asDouble
-                Log.d("TrendsScreen", "Health probability: $probability")
-                
-                if (probability != null) {
-                    return probability * 100
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("TrendsScreen", "Failed to parse health data", e)
-            Log.e("TrendsScreen", "Raw health result: $healthResult")
+        if (healthHistory != null) {
+            return healthHistory.probability * 100
         }
+    } catch (e: Exception) {
+        Log.e("TrendsScreen", "Failed to get health history", e)
     }
 
     return calculateFallbackHealth(plant)

@@ -32,4 +32,8 @@ class CoreRepositoryImpl(get: Any) : Repository {
         TODO("Not yet implemented")
     }
 
+    override suspend fun getHealthHistory(identifier: PlantOuterClass.PlantIdentifier): PlantOuterClass.HealthCheckInformation {
+        TODO("Not yet implemented")
+    }
+
 }

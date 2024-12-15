@@ -15,6 +15,7 @@ import androidx.room.Room
 import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
 import org.koin.android.ext.koin.androidContext
 import com.example.plantandsucculentapp.plants.data.PlantHealthService
+import com.example.plantandsucculentapp.plants.data.local.PlantHealthHistoryManager
 
 //
 //val plantsModule = module {
@@ -52,9 +53,9 @@ import com.example.plantandsucculentapp.plants.data.PlantHealthService
 val plantsModule = module {
     single {
         Room.databaseBuilder(
-            get(),
+            androidContext(),
             PlantDatabase::class.java,
-            "plant_db"
+            "plants.db"
         )
         .fallbackToDestructiveMigration()
         .build()
@@ -86,6 +87,8 @@ val plantsModule = module {
             healthService = get()
         )
     }
+
+    single { PlantHealthHistoryManager(get()) }
 
     viewModel {
         PlantsViewModel(get())

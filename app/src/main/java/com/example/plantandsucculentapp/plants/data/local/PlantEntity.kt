@@ -3,6 +3,8 @@ package com.example.plantandsucculentapp.plants.data.local
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import plant.PlantOuterClass
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 @Entity(tableName = "plants")
 data class PlantEntity(
@@ -15,13 +17,20 @@ data class PlantEntity(
     val lastIdentification: Long?,
     val identifiedSpeciesName: String?,
     val photos: List<PhotoEntity>,
-    val lastHealthResult: String? = null
+    val lastHealthResult: String? = null,
+    val healthCheckHistory: List<HealthCheckEntity> = emptyList()
 )
 
 data class PhotoEntity(
     val url: String,
     val timestamp: Long,
     val note: String?
+)
+
+data class HealthCheckEntity(
+    val timestamp: Long,
+    val result: String,
+    val probability: Double
 )
 
 fun PlantEntity.toPlant(): PlantOuterClass.Plant {
@@ -39,7 +48,9 @@ fun PlantEntity.toPlant(): PlantOuterClass.Plant {
                 .apply {
                     lastIdentification?.let { setLastIdentification(it) }
                     identifiedSpeciesName?.let { setIdentifiedSpeciesName(it) }
-                    lastHealthResult?.let { setLastHealthResult(it) }
+                    if (!lastHealthResult.isNullOrEmpty()) {
+                        setLastHealthResult(lastHealthResult)
+                    }
                     photos.forEach { photo ->
                         addPhotos(
                             PlantOuterClass.PhotoEntry.newBuilder()
@@ -70,6 +81,7 @@ fun PlantOuterClass.Plant.toEntity(): PlantEntity {
                 note = if (photo.hasNote()) photo.note else null
             )
         },
-        lastHealthResult = information.lastHealthResult
+        lastHealthResult = information.lastHealthResult,
+        healthCheckHistory = emptyList()
     )
 } 

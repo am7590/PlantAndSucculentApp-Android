@@ -17,4 +17,6 @@ interface GrpcClientInterface {
         identifier: PlantOuterClass.PlantIdentifier,
         healthCheckData: String
     ): Result<PlantOuterClass.HealthCheckDataResponse>
+    suspend fun saveHealthCheckData(request: PlantOuterClass.HealthCheckDataRequest): Result<PlantOuterClass.HealthCheckDataResponse>
+    suspend fun getHealthCheckHistory(identifier: PlantOuterClass.PlantIdentifier): Result<PlantOuterClass.HealthCheckInformation>
 }

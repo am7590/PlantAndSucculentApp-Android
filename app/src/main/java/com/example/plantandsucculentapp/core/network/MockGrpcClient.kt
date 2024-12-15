@@ -108,4 +108,32 @@ class MockGrpcClient : GrpcClientInterface {
                 .build()
         )
     }
+
+    override suspend fun saveHealthCheckData(request: PlantOuterClass.HealthCheckDataRequest): Result<PlantOuterClass.HealthCheckDataResponse> {
+        return Result.success(
+            PlantOuterClass.HealthCheckDataResponse.newBuilder()
+                .setStatus("success")
+                .build()
+        )
+    }
+
+    override suspend fun getHealthCheckHistory(identifier: PlantOuterClass.PlantIdentifier): Result<PlantOuterClass.HealthCheckInformation> {
+        return Result.success(
+            PlantOuterClass.HealthCheckInformation.newBuilder()
+                .setProbability(0.85)
+                .setHistoricalProbabilities(
+                    PlantOuterClass.HistoricalProbabilities.newBuilder()
+                        .addProbabilities(
+                            PlantOuterClass.Probability.newBuilder()
+                                .setId("mock_health_check")
+                                .setName("health_check")
+                                .setProbability(0.85)
+                                .setDate(System.currentTimeMillis())
+                                .build()
+                        )
+                        .build()
+                )
+                .build()
+        )
+    }
 }

@@ -16,4 +16,5 @@ interface Repository {
         identifier: PlantOuterClass.PlantIdentifier,
         latestPhotoUrl: String
     ): String
+    suspend fun getHealthHistory(identifier: PlantOuterClass.PlantIdentifier): PlantOuterClass.HealthCheckInformation
 }

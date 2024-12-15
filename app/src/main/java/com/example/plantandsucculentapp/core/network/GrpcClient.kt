@@ -210,4 +210,24 @@ class GrpcClient : GrpcClientInterface {
             Log.e(TAG, "Error shutting down gRPC channel", e)
         }
     }
+
+    override suspend fun saveHealthCheckData(request: PlantOuterClass.HealthCheckDataRequest): Result<PlantOuterClass.HealthCheckDataResponse> {
+        return try {
+            Result.success(stub.saveHealthCheckData(request))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getHealthCheckHistory(identifier: PlantOuterClass.PlantIdentifier): Result<PlantOuterClass.HealthCheckInformation> {
+        return try {
+            Result.success(stub.healthCheckRequest(
+                PlantOuterClass.HealthCheckRequestParam.newBuilder()
+                    .setSku(identifier.sku)
+                    .build()
+            ))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

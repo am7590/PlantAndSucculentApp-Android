@@ -18,6 +18,9 @@ import android.content.SharedPreferences
 import com.example.plantandsucculentapp.plants.data.model.HealthCheckResponse
 import android.util.Log
 import com.example.plantandsucculentapp.plants.data.PlantHealthService
+import com.example.plantandsucculentapp.plants.data.local.HealthCheckEntity
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 
 class PlantsRepositoryImpl(
     private val grpcClient: GrpcClientInterface,
@@ -35,12 +38,14 @@ class PlantsRepositoryImpl(
 
     override suspend fun getWateredPlants(): List<PlantOuterClass.Plant> = withContext(Dispatchers.IO) {
         if (isMockEnabled) {
-            // Use mock data directly
             val result = grpcClient.getWatered("user123")
             result.getOrThrow().plantsList
         } else {
-            // For real implementation, just get plants from local cache
-            plantDao.getAllPlants().first().map { it.toPlant() }
+            val plants = plantDao.getAllPlants().first()
+            Log.d(TAG, "Retrieved plants from Room: ${plants.map { 
+                "${it.sku}: history size=${it.healthCheckHistory.size}" 
+            }}")
+            plants.map { it.toPlant() }
         }
     }
 
@@ -49,7 +54,7 @@ class PlantsRepositoryImpl(
             try {
                 val response = grpcClient.addPlant(userId, plant)
                 if (!isMockEnabled) {
-                    // Cache the plant locally after successful server add
+                    // For new plants, we start with empty history
                     plantDao.insertPlant(plant.toEntity())
                 }
                 response.getOrThrow().status
@@ -68,12 +73,21 @@ class PlantsRepositoryImpl(
         try {
             val response = grpcClient.updatePlant(userId, identifier, information)
             if (!isMockEnabled) {
-                // Update the plant in local cache after successful server update
+                // Get existing plant to preserve health check history
+                val existingPlant = plantDao.getPlantBySku(identifier.sku)
+                
+                // Create new plant entity with preserved history
                 val updatedPlant = PlantOuterClass.Plant.newBuilder()
                     .setIdentifier(identifier)
                     .setInformation(information)
                     .build()
-                plantDao.insertPlant(updatedPlant.toEntity())
+                    .toEntity()
+                    .copy(
+                        healthCheckHistory = existingPlant?.healthCheckHistory ?: emptyList()
+                    )
+                
+                // Store in Room
+                plantDao.insertPlant(updatedPlant)
             }
             response.getOrThrow().status
         } catch (e: UnknownHostException) {
@@ -118,33 +132,98 @@ class PlantsRepositoryImpl(
         }
     }
 
-    private suspend fun updatePlantHealthStatus(sku: String, healthResult: String) {
-        try {
-            val plant = plantDao.getPlantBySku(sku)
-            Log.d(TAG, "Current plant data before update: $plant")
+    override suspend fun getHealthHistory(identifier: PlantOuterClass.PlantIdentifier): PlantOuterClass.HealthCheckInformation {
+        return try {
+            // Get the plant from Room
+            val plant = plantDao.getPlantBySku(identifier.sku)
             
-            plant?.let {
-                val updatedPlant = it.copy(
-                    lastHealthCheck = System.currentTimeMillis(),
-                    lastHealthResult = healthResult
-                )
-                Log.d(TAG, "Updating plant with health result: $updatedPlant")
-                
-                // Store in Room
-                plantDao.insertPlant(updatedPlant)
-                
-                // Verify the update
-                val verifyPlant = plantDao.getPlantBySku(sku)
-                Log.d(TAG, """
-                    Verified plant after update: 
-                    SKU: ${verifyPlant?.sku}
-                    LastHealthCheck: ${verifyPlant?.lastHealthCheck}
-                    LastHealthResult: ${verifyPlant?.lastHealthResult}
-                    LastHealthResult length: ${verifyPlant?.lastHealthResult?.length}
-                """.trimIndent())
+            // Get the latest health check from history
+            val latestHealthCheck = plant?.healthCheckHistory?.maxByOrNull { it.timestamp }
+            
+            if (latestHealthCheck != null) {
+                PlantOuterClass.HealthCheckInformation.newBuilder()
+                    .setProbability(latestHealthCheck.probability)
+                    .setHistoricalProbabilities(
+                        PlantOuterClass.HistoricalProbabilities.newBuilder()
+                            .addAllProbabilities(
+                                plant.healthCheckHistory.map { healthCheck ->
+                                    PlantOuterClass.Probability.newBuilder()
+                                        .setId("health_check_${healthCheck.timestamp}")
+                                        .setName("health_check")
+                                        .setProbability(healthCheck.probability)
+                                        .setDate(healthCheck.timestamp)
+                                        .build()
+                                }
+                            )
+                            .build()
+                    )
+                    .build()
+            } else {
+                // If no history found, try to parse from lastHealthResult
+                val healthResult = plant?.lastHealthResult
+                if (!healthResult.isNullOrEmpty()) {
+                    try {
+                        val healthData = Gson().fromJson(healthResult, JsonObject::class.java)
+                        val probability = healthData
+                            .getAsJsonObject("health_assessment")
+                            ?.get("is_healthy_probability")
+                            ?.asDouble ?: 0.0
+
+                        PlantOuterClass.HealthCheckInformation.newBuilder()
+                            .setProbability(probability)
+                            .build()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to parse health data", e)
+                        PlantOuterClass.HealthCheckInformation.getDefaultInstance()
+                    }
+                } else {
+                    PlantOuterClass.HealthCheckInformation.getDefaultInstance()
+                }
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to get health history", e)
+            PlantOuterClass.HealthCheckInformation.getDefaultInstance()
+        }
+    }
+
+    private suspend fun updatePlantHealthStatus(sku: String, healthResult: String) {
+        try {
+            // Parse the health result
+            val healthData = Gson().fromJson(healthResult, JsonObject::class.java)
+            val probability = healthData
+                .getAsJsonObject("health_assessment")
+                ?.get("is_healthy_probability")
+                ?.asDouble ?: 0.0
+
+            // Create health check data for server
+            val healthCheckData = PlantOuterClass.HealthCheckInformation.newBuilder()
+                .setProbability(probability)
+                .setHistoricalProbabilities(
+                    PlantOuterClass.HistoricalProbabilities.newBuilder()
+                        .addProbabilities(
+                            PlantOuterClass.Probability.newBuilder()
+                                .setId("health_check_${System.currentTimeMillis()}")
+                                .setName("health_check")
+                                .setProbability(probability)
+                                .setDate(System.currentTimeMillis())
+                                .build()
+                        )
+                        .build()
+                )
+                .build()
+
+            // Save to server
+            val response = grpcClient.saveHealthCheckData(
+                PlantOuterClass.HealthCheckDataRequest.newBuilder()
+                    .setIdentifier(PlantOuterClass.PlantIdentifier.newBuilder().setSku(sku).build())
+                    .setHealthCheckInformation(Gson().toJson(healthCheckData))
+                    .build()
+            )
+
+            Log.d(TAG, "Saved health check to server: ${response.getOrThrow().status}")
+        } catch (e: Exception) {
             Log.e(TAG, "Failed to update plant health status", e)
+            e.printStackTrace()
         }
     }
 }
