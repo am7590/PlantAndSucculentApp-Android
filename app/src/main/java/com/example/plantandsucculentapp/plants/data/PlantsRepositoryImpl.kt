@@ -134,13 +134,16 @@ class PlantsRepositoryImpl(
 
     override suspend fun getHealthHistory(identifier: PlantOuterClass.PlantIdentifier): PlantOuterClass.HealthCheckInformation {
         return try {
-            // Get the plant from Room
             val plant = plantDao.getPlantBySku(identifier.sku)
-            
-            // Get the latest health check from history
-            val latestHealthCheck = plant?.healthCheckHistory?.maxByOrNull { it.timestamp }
-            
-            if (latestHealthCheck != null) {
+            Log.d(TAG, """
+                Getting health history for ${identifier.sku}:
+                - Plant found: ${plant != null}
+                - History size: ${plant?.healthCheckHistory?.size}
+                - Raw history: ${plant?.healthCheckHistory}
+            """.trimIndent())
+
+            if (plant?.healthCheckHistory?.isNotEmpty() == true) {
+                val latestHealthCheck = plant.healthCheckHistory.maxByOrNull { it.timestamp }!!
                 PlantOuterClass.HealthCheckInformation.newBuilder()
                     .setProbability(latestHealthCheck.probability)
                     .setHistoricalProbabilities(
@@ -159,26 +162,7 @@ class PlantsRepositoryImpl(
                     )
                     .build()
             } else {
-                // If no history found, try to parse from lastHealthResult
-                val healthResult = plant?.lastHealthResult
-                if (!healthResult.isNullOrEmpty()) {
-                    try {
-                        val healthData = Gson().fromJson(healthResult, JsonObject::class.java)
-                        val probability = healthData
-                            .getAsJsonObject("health_assessment")
-                            ?.get("is_healthy_probability")
-                            ?.asDouble ?: 0.0
-
-                        PlantOuterClass.HealthCheckInformation.newBuilder()
-                            .setProbability(probability)
-                            .build()
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to parse health data", e)
-                        PlantOuterClass.HealthCheckInformation.getDefaultInstance()
-                    }
-                } else {
-                    PlantOuterClass.HealthCheckInformation.getDefaultInstance()
-                }
+                PlantOuterClass.HealthCheckInformation.getDefaultInstance()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get health history", e)
@@ -188,12 +172,40 @@ class PlantsRepositoryImpl(
 
     private suspend fun updatePlantHealthStatus(sku: String, healthResult: String) {
         try {
+            // Get existing plant
+            val existingPlant = plantDao.getPlantBySku(sku)
+            
             // Parse the health result
             val healthData = Gson().fromJson(healthResult, JsonObject::class.java)
             val probability = healthData
                 .getAsJsonObject("health_assessment")
                 ?.get("is_healthy_probability")
                 ?.asDouble ?: 0.0
+
+            // Create new health check entry
+            val newHealthCheck = HealthCheckEntity(
+                timestamp = System.currentTimeMillis(),
+                result = healthResult,
+                probability = probability
+            )
+
+            // Update plant with new health check
+            existingPlant?.let { plant ->
+                val updatedPlant = plant.copy(
+                    lastHealthCheck = System.currentTimeMillis(),
+                    lastHealthResult = healthResult,
+                    healthCheckHistory = plant.healthCheckHistory + newHealthCheck
+                )
+                plantDao.insertPlant(updatedPlant)
+                
+                Log.d(TAG, """
+                    Updated plant health status:
+                    - SKU: $sku
+                    - New probability: $probability
+                    - History size: ${updatedPlant.healthCheckHistory.size}
+                    - Latest history entry: ${updatedPlant.healthCheckHistory.lastOrNull()}
+                """.trimIndent())
+            }
 
             // Create health check data for server
             val healthCheckData = PlantOuterClass.HealthCheckInformation.newBuilder()

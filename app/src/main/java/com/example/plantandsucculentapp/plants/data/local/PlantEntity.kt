@@ -60,6 +60,20 @@ fun PlantEntity.toPlant(): PlantOuterClass.Plant {
                                 .build()
                         )
                     }
+                    setHistoricalHealthChecks(
+                        PlantOuterClass.HistoricalProbabilities.newBuilder()
+                            .addAllProbabilities(
+                                healthCheckHistory.map { healthCheck ->
+                                    PlantOuterClass.Probability.newBuilder()
+                                        .setId("health_check_${healthCheck.timestamp}")
+                                        .setName("health_check")
+                                        .setProbability(healthCheck.probability)
+                                        .setDate(healthCheck.timestamp)
+                                        .build()
+                                }
+                            )
+                            .build()
+                    )
                 }
         )
         .build()
@@ -82,6 +96,16 @@ fun PlantOuterClass.Plant.toEntity(): PlantEntity {
             )
         },
         lastHealthResult = information.lastHealthResult,
-        healthCheckHistory = emptyList()
+        healthCheckHistory = if (information.hasHistoricalHealthChecks()) {
+            information.historicalHealthChecks.probabilitiesList.map { prob ->
+                HealthCheckEntity(
+                    timestamp = prob.date,
+                    result = "",
+                    probability = prob.probability
+                )
+            }
+        } else {
+            emptyList()
+        }
     )
 } 

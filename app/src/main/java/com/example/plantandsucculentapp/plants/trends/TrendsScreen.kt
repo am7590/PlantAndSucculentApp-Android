@@ -1,6 +1,7 @@
 package com.example.plantandsucculentapp.plants.trends
 
 import android.annotation.SuppressLint
+import android.os.Build
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,7 +54,17 @@ import com.example.plantandsucculentapp.plants.trends.components.EmptyTrendsScre
 import com.example.plantandsucculentapp.plants.data.local.PlantHealthHistoryManager
 import com.example.plantandsucculentapp.plants.domain.Repository
 import org.koin.compose.koinInject
+import android.text.format.DateFormat
+import androidx.annotation.RequiresApi
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import kotlin.math.roundToInt
 
+@RequiresApi(Build.VERSION_CODES.O)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,6 +113,7 @@ fun TrendsScreen(viewModel: PlantsViewModel) {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun TrendsContent(plants: List<PlantOuterClass.Plant>, repository: Repository) {
     LazyColumn(
@@ -210,22 +222,42 @@ private fun OverallHealthCard(plants: List<PlantOuterClass.Plant>, repository: R
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 private fun PlantHealthCard(
     plant: PlantOuterClass.Plant,
     repository: Repository
 ) {
-    val entity = plant.toEntity()
     var currentHealth by remember { mutableStateOf(0.0) }
+    var healthHistory by remember { mutableStateOf<List<PlantOuterClass.Probability>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Calculate health when the card is first shown
-    LaunchedEffect(plant.identifier.sku) {
-        currentHealth = calculateHealthPercentage(plant, repository) / 100.0 // Convert from percentage to decimal
+    // Refresh when plant data changes or after health check
+    LaunchedEffect(plant.identifier.sku, plant.information.lastHealthCheck) {
+        try {
+            val history = repository.getHealthHistory(plant.identifier)
+            Log.d("TrendsScreen", """
+                Health history for plant ${plant.identifier.sku}:
+                - Probability: ${history.probability}
+                - History size: ${history.historicalProbabilities.probabilitiesList.size}
+                - Raw history: ${history.historicalProbabilities.probabilitiesList}
+                - Last health check: ${plant.information.lastHealthCheck}
+            """.trimIndent())
+            
+            healthHistory = history.historicalProbabilities.probabilitiesList
+            currentHealth = history.probability * 100
+        } catch (e: Exception) {
+            Log.e("TrendsScreen", "Failed to get health history", e)
+            errorMessage = e.message
+            currentHealth = calculateFallbackHealth(plant)
+        }
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column(
             modifier = Modifier
@@ -233,76 +265,185 @@ private fun PlantHealthCard(
                 .padding(16.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Plant Image
-                AsyncImage(
-                    model = plant.information.photosList.maxByOrNull { it.timestamp }?.url,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        plant.information.name,
-                        style = MaterialTheme.typography.titleMedium
+                // Plant image and basic info
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AsyncImage(
+                        model = plant.information.photosList.lastOrNull()?.url,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
                     )
-                    
-                    Text(
-                        "Health: ${(currentHealth * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = when {
-                            currentHealth >= 0.8 -> Color.Green
-                            currentHealth >= 0.6 -> Color.Yellow
-                            else -> Color.Red
-                        }
-                    )
-                    
-                    Text(
-                        "Last checked: ${formatDate(plant.information.lastHealthCheck)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column {
+                        Text(
+                            text = plant.information.name,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = "Health: ${currentHealth.roundToInt()}%",
+                            color = when {
+                                currentHealth >= 70 -> Color.Green
+                                currentHealth >= 40 -> Color.Yellow
+                                else -> Color.Red
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Last checked: ${
+                                Date(plant.information.lastHealthCheck)
+                            }",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-            
-            if (entity.healthCheckHistory.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+
+            // Health History Graph
+            if (healthHistory.size > 1) {
+                Log.d("TrendsScreen", """
+                    Showing graph section:
+                    - Plant: ${plant.identifier.sku}
+                    - History size: ${healthHistory.size}
+                    - History: ${healthHistory.map { "${it.date}: ${it.probability}" }}
+                """.trimIndent())
+                
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "Health History",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "Health History",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(
+                HealthHistoryGraph(
+                    history = healthHistory,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    entity.healthCheckHistory
-                        .sortedBy { it.timestamp }
-                        .takeLast(5)  // Show last 5 checks
-                        .forEach { healthCheck ->
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(
-                                        color = when {
-                                            healthCheck.probability >= 0.8 -> Color.Green
-                                            healthCheck.probability >= 0.6 -> Color.Yellow
-                                            else -> Color.Red
-                                        }.copy(alpha = 0.6f),
-                                        shape = CircleShape
-                                    )
-                            )
-                        }
-                }
+                        .height(120.dp)
+                )
+            } else {
+                Log.d("TrendsScreen", """
+                    Not showing graph:
+                    - Plant: ${plant.identifier.sku}
+                    - History size: ${healthHistory.size}
+                """.trimIndent())
             }
+
+            // Show error if any
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthHistoryGraph(
+    history: List<PlantOuterClass.Probability>,
+    modifier: Modifier = Modifier
+) {
+    val sortedHistory = remember(history) {
+        history.sortedBy { it.date }
+    }
+    
+    // Calculate time range and normalize points
+    val points = remember(sortedHistory) {
+        val firstTimestamp = sortedHistory.first().date
+        val lastTimestamp = sortedHistory.last().date
+        val timeRange = lastTimestamp - firstTimestamp
+        
+        // Use percentage of total width for x-coordinates (0 to 100)
+        sortedHistory.map { probability ->
+            val xPosition = if (timeRange > 0) {
+                ((probability.date - firstTimestamp).toFloat() / timeRange.toFloat()) * 100f
+            } else {
+                50f // Center single point
+            }
+            Pair(xPosition, (probability.probability * 100).toFloat())
+        }.also { points ->
+            Log.d("TrendsScreen", "Calculated normalized points (0-100 scale): $points")
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val padding = 16.dp.toPx()
+        
+        // Fixed scale: x from 0-100, y from 0-100
+        val xMin = 0f
+        val xMax = 100f
+        val yMin = 0f
+        val yMax = 100f
+
+        // Calculate scale factors
+        val xScale = (width - 2 * padding) / (xMax - xMin)
+        val yScale = (height - 2 * padding) / (yMax - yMin)
+
+        Log.d("TrendsScreen", """
+            Graph dimensions:
+            - Width: $width, Height: $height
+            - X range: $xMin to $xMax percent (scale: $xScale)
+            - Y range: $yMin to $yMax (scale: $yScale)
+        """.trimIndent())
+        
+        // Draw axes
+        drawLine(
+            color = Color.Gray,
+            start = Offset(padding, height - padding),
+            end = Offset(width - padding, height - padding),
+            strokeWidth = 1.dp.toPx()
+        )
+        
+        drawLine(
+            color = Color.Gray,
+            start = Offset(padding, padding),
+            end = Offset(padding, height - padding),
+            strokeWidth = 1.dp.toPx()
+        )
+
+        // Draw line graph
+        if (points.size > 1) {
+            val path = Path()
+            points.forEachIndexed { index, point ->
+                val x = padding + (point.first - xMin) * xScale
+                val y = height - padding - (point.second - yMin) * yScale
+                
+                if (index == 0) {
+                    path.moveTo(x, y)
+                } else {
+                    path.lineTo(x, y)
+                }
+                
+                // Draw points
+                drawCircle(
+                    color = Color.Blue,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, y)
+                )
+            }
+
+            // Draw line connecting points
+            drawPath(
+                path = path,
+                color = Color.Blue,
+                style = Stroke(
+                    width = 2.dp.toPx(),
+                    pathEffect = PathEffect.cornerPathEffect(8.dp.toPx())
+                )
+            )
         }
     }
 }

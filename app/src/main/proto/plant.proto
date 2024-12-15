@@ -71,6 +71,7 @@ message PlantInformation {
     string identified_species_name = 5;
     repeated PhotoEntry photos = 6;
     string last_health_result = 7;
+    HistoricalProbabilities historical_health_checks = 8;
 }
 
 message PhotoEntry {
