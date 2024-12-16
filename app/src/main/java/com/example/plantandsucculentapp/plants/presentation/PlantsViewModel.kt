@@ -185,17 +185,12 @@ class PlantsViewModel(
             try {
                 val latestPhoto = plant.information.photosList.maxByOrNull { it.timestamp }
                 if (latestPhoto != null) {
-                    _identificationResult.value = UiState.Loading
-                    val result = repository.identifyPlant(latestPhoto.url)
-                    _identificationResult.value = UiState.Success(result)
+                    startPlantIdentification(latestPhoto.url, plant.identifier.sku)
                 }
             } catch (e: Exception) {
                 Log.e("PlantsViewModel", "Failed to identify plant", e)
-                _identificationResult.value = UiState.Error(e.message ?: "Failed to identify plant")
             }
         }
-        // Reset state to trigger recomposition
-        _identificationResult.value = UiState.Loading
     }
 
     fun retryIdentification() {
@@ -269,22 +264,17 @@ class PlantsViewModel(
     }
 
     fun startPlantIdentification(photoUrl: String, plantSku: String) {
-        if (isIdentificationInProgress) {
-            Log.d("PlantsViewModel", "Plant identification already in progress, skipping request")
-            return
-        }
+        if (isIdentificationInProgress) return
         
         viewModelScope.launch {
             try {
                 isIdentificationInProgress = true
-                currentIdentificationSku = plantSku
-                _identificationResults.value = emptyList() // Clear previous results
+                _identificationResult.value = UiState.Loading
                 
                 val result = repository.identifyPlant(photoUrl)
-                _identificationResults.value = result.suggestions
+                _identificationResult.value = UiState.Success(result)
             } catch (e: Exception) {
-                Log.e("PlantsViewModel", "Failed to identify plant", e)
-                _identificationResults.value = emptyList()
+                _identificationResult.value = UiState.Error(e.message ?: "Failed to identify plant")
             } finally {
                 isIdentificationInProgress = false
             }

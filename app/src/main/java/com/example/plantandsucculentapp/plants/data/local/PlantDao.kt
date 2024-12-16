@@ -21,6 +21,9 @@ interface PlantDao {
 
     @Query("SELECT * FROM plant_photos WHERE plantSku = :sku ORDER BY timestamp ASC")
     suspend fun getPhotosForPlant(sku: String): List<PhotoEntity>
+
+    @Query("SELECT * FROM plants WHERE sku = :sku")
+    suspend fun getPlantById(sku: String): PlantEntity?
 }
 
 data class PlantWithPhotos(

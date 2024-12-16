@@ -21,7 +21,8 @@ data class PlantEntity(
     val lastHealthCheck: Long = 0,
     val lastHealthResult: String = "",
     @TypeConverters(Converters::class)
-    val healthCheckHistory: List<HealthCheckEntity> = emptyList()
+    val healthCheckHistory: List<HealthCheckEntity> = emptyList(),
+    val lastIdentificationResult: String? = null
 ) {
     @Ignore
     var photos: List<PhotoEntity> = emptyList()

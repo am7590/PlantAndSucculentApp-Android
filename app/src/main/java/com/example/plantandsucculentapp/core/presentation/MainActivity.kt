@@ -1,7 +1,6 @@
 package com.example.plantandsucculentapp.core.presentation
 
 import HealthCheckResultScreen
-//import PlantIdentificationScreen
 import PlantsDetailScreen
 import android.os.Build
 import android.os.Bundle
@@ -164,43 +163,29 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
             }
             composable("plantDetail/{sku}") { backStackEntry ->
                 val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
+                val plant = (plantsViewModel.plantsState.value as? UiState.Success)?.data
+                    ?.find { it.identifier.sku == sku } ?: return@composable
 
-                when (val currentState = plantsViewModel.plantsState.collectAsState().value) {
-                    is UiState.Success -> {
-                        val plant = currentState.data.find { it.identifier.sku == sku }
-                        if (plant != null) {
-                            PlantsDetailScreen(
-                                plant = plant,
-                                sku = sku,
-                                viewModel = plantsViewModel,
-                                onIdentifyPlant = {
-                                    navController.navigate("plantIdentification/${plant.identifier.sku}")
-                                },
-                                onWaterPlant = {
-                                    // Handle water plant
-                                },
-                                onHealthCheck = {
-                                    plantsViewModel.performHealthCheck(plant)
-                                },
-                                onNavigateToHealthResult = {
-                                    navController.navigate("healthCheckResult")
-                                },
-                                onBack = {
-                                    navController.popBackStack()
-                                }
-                            )
-                        }
+                PlantsDetailScreen(
+                    plant = plant,
+                    sku = sku,
+                    viewModel = plantsViewModel,
+                    onIdentifyPlant = {
+                        navController.navigate("plantIdentification/${plant.identifier.sku}")
+                    },
+                    onWaterPlant = {
+                        // Handle water plant
+                    },
+                    onHealthCheck = {
+                        plantsViewModel.performHealthCheck(plant)
+                    },
+                    onNavigateToHealthResult = {
+                        navController.navigate("healthCheckResult")
+                    },
+                    onBack = {
+                        navController.popBackStack()
                     }
-                    is UiState.Loading -> {
-                        LoadingScreen()
-                    }
-                    is UiState.Error -> {
-                        ErrorScreen(
-                            message = currentState.message,
-                            onRetry = { plantsViewModel.fetchPlantList() }
-                        )
-                    }
-                }
+                )
             }
             composable("trends") {
                 TrendsScreen(viewModel = plantsViewModel)

@@ -28,7 +28,7 @@ class PlantsRepositoryImpl(
     private val isMockEnabled: Boolean,
     private val sharedPreferences: SharedPreferences,
     val healthService: PlantHealthService,
-    private val gson: Gson
+    private val gson: Gson,
 ) : Repository {
     private val healthCheckCache = mutableMapOf<String, HealthCheckResponse>()
     private val cacheKeyPrefix = "healthcheck_cache_"

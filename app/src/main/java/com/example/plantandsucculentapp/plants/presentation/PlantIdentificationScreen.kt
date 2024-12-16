@@ -79,36 +79,15 @@ fun PlantIdentificationScreen(
     onSpeciesSelected: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val identificationResult by viewModel.identificationResult.collectAsState()
-
-    when (val result = identificationResult) {
-        is UiState.Loading -> {
-            LoadingContent()
-        }
-        is UiState.Success -> {
-            if (result.data.suggestions.isEmpty()) {
-                ErrorContent(
-                    message = "No plants identified. Please try again with a clearer photo.",
-                    onRetry = { viewModel.retryIdentification() }
-                )
-            } else {
-                SuccessContent(
-                    suggestions = result.data.suggestions,
-                    onSpeciesSelected = onSpeciesSelected
-                )
-            }
-        }
-        is UiState.Error -> {
-            ErrorContent(
-                message = result.message,
-                onRetry = { viewModel.retryIdentification() }
-            )
-        }
+    when (val result = viewModel.identificationResult.collectAsState().value) {
+        is UiState.Loading -> LoadingScreen()
+        is UiState.Success -> SuccessContent(result.data.suggestions, onSpeciesSelected)
+        is UiState.Error -> ErrorContent(result.message) { viewModel.retryIdentification() }
     }
 }
 
 @Composable
-private fun LoadingContent() {
+private fun LoadingScreen() {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,

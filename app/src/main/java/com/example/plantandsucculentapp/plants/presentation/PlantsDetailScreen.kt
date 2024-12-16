@@ -78,7 +78,7 @@ fun PlantsDetailScreen(
         if (viewModel.shouldNavigateToHealthCheck) {
             healthCheckResult?.let {
                 onNavigateToHealthResult()
-                viewModel.clearNavigateToHealthCheck() // Reset flag after navigation
+                viewModel.clearNavigateToHealthCheck()
             }
         }
     }
@@ -129,7 +129,10 @@ fun PlantsDetailScreen(
 
             item {
                 Button(
-                    onClick = onIdentifyPlant,
+                    onClick = { 
+                        viewModel.identifyPlant(plant)
+                        onIdentifyPlant()
+                    },
                     enabled = plant.information.photosList.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
