@@ -174,17 +174,16 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                                 sku = sku,
                                 viewModel = plantsViewModel,
                                 onIdentifyPlant = {
-                                    val photoUrl = plant.information.photosList.lastOrNull()?.url
-                                    if (photoUrl != null) {
-                                        plantsViewModel.startPlantIdentification(photoUrl, sku)
-                                        navController.navigate("plantIdentification/${plant.identifier.sku}")
-                                    }
+                                    navController.navigate("plantIdentification/${plant.identifier.sku}")
                                 },
                                 onWaterPlant = {
                                     // Handle water plant
                                 },
                                 onHealthCheck = {
                                     plantsViewModel.performHealthCheck(plant)
+                                },
+                                onNavigateToHealthResult = {
+                                    navController.navigate("healthCheckResult")
                                 },
                                 onBack = {
                                     navController.popBackStack()
@@ -208,11 +207,10 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
             }
             composable("healthCheckResult") {
                 val healthCheckResult = plantsViewModel.lastHealthCheckResult.collectAsState()
-                healthCheckResult.value?.let { it1 ->
-                    HealthCheckResultScreen(
-                        healthCheckResult = it1,
-                        onClose = { navController.popBackStack() }
-                    )
+                healthCheckResult.value?.let { it ->
+                    HealthCheckResultScreen(viewModel = plantsViewModel) {
+                        navController.popBackStack()
+                    }
                 }
             }
             composable(

@@ -20,6 +20,8 @@ import kotlinx.coroutines.launch
 import plant.PlantOuterClass
 import java.io.File
 import java.util.*
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 
 class PlantsViewModel(
     private val repository: Repository,
@@ -47,6 +49,12 @@ class PlantsViewModel(
 
     private var isIdentificationInProgress = false
     private var currentIdentificationSku: String? = null
+
+    private var _shouldNavigateToHealthCheck = false
+    val shouldNavigateToHealthCheck get() = _shouldNavigateToHealthCheck
+
+    // Add a state to hold the current photo being processed
+    private var _currentHealthCheckPhoto: String? = null
 
     init {
         fetchPlantList()
@@ -90,19 +98,70 @@ class PlantsViewModel(
         viewModelScope.launch {
             try {
                 val latestPhoto = plant.information.photosList.maxByOrNull { it.timestamp }
-                if (latestPhoto != null && shouldAllowHealthCheck(plant)) {
-                    val result = repository.performHealthCheck(
-                        "user123", 
-                        plant.identifier,
-                        latestPhoto.url
-                    )
-                    _lastHealthCheckResult.value = result
-                    fetchPlantList() // This will trigger the LaunchedEffect in TrendsScreen
+                if (latestPhoto == null) {
+                    _lastHealthCheckResult.value = """{"error": "No photo available"}"""
+                    return@launch
                 }
+                
+                // Store the current photo URL before processing
+                _currentHealthCheckPhoto = latestPhoto.url
+                
+                // Perform health check
+                val result = repository.performHealthCheck(
+                    userId = "user123", 
+                    identifier = plant.identifier,
+                    latestPhotoUrl = latestPhoto.url
+                )
+                _lastHealthCheckResult.value = result
+                _shouldNavigateToHealthCheck = true
+                
+                // Update plant's health check status in database
+                updatePlantHealthStatus(plant.identifier.sku, result)
             } catch (e: Exception) {
+                Log.e(TAG, "Failed to perform health check", e)
                 _lastHealthCheckResult.value = """{"error": "Failed to perform health check: ${e.message}"}"""
             }
         }
+    }
+
+    private suspend fun updatePlantHealthStatus(sku: String, healthCheckResult: String) {
+        try {
+            // Get current plant
+            val currentPlant = (plantsState.value as? UiState.Success)?.data
+                ?.find { it.identifier.sku == sku }
+                ?: return
+
+            // Parse health data
+            val healthData = Gson().fromJson(healthCheckResult, JsonObject::class.java)
+            val probability = healthData
+                .getAsJsonObject("health_assessment")
+                ?.get("is_healthy_probability")
+                ?.asDouble
+                ?: return
+
+            // Update plant information with new health check data
+            val updatedInformation = currentPlant.information.toBuilder()
+                .setLastHealthCheck(System.currentTimeMillis())
+                .setLastHealthResult(healthCheckResult)
+                .build()
+
+            // Update plant in database
+            updatePlant(
+                userId = "user123",
+                identifier = currentPlant.identifier,
+                information = updatedInformation
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update plant health status", e)
+        }
+    }
+
+    // Add method to get current health check photo
+    fun getCurrentHealthCheckPhoto(): String? = _currentHealthCheckPhoto
+
+    // Clear the current photo after health check is complete
+    fun clearCurrentHealthCheckPhoto() {
+        _currentHealthCheckPhoto = null
     }
 
     private fun shouldAllowHealthCheck(plant: PlantOuterClass.Plant): Boolean {
@@ -252,5 +311,9 @@ class PlantsViewModel(
                 Log.e("PlantsViewModel", "Failed to update plant with identification", e)
             }
         }
+    }
+
+    fun clearNavigateToHealthCheck() {
+        _shouldNavigateToHealthCheck = false
     }
 }

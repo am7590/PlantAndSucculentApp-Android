@@ -54,6 +54,11 @@ import java.io.File
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import coil.compose.LocalImageLoader
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.navigation.NavController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,8 +69,20 @@ fun PlantsDetailScreen(
     onIdentifyPlant: () -> Unit,
     onWaterPlant: () -> Unit,
     onHealthCheck: () -> Unit,
+    onNavigateToHealthResult: () -> Unit,
     onBack: () -> Unit
 ) {
+    val healthCheckResult by viewModel.lastHealthCheckResult.collectAsState()
+    
+    LaunchedEffect(healthCheckResult) {
+        if (viewModel.shouldNavigateToHealthCheck) {
+            healthCheckResult?.let {
+                onNavigateToHealthResult()
+                viewModel.clearNavigateToHealthCheck() // Reset flag after navigation
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

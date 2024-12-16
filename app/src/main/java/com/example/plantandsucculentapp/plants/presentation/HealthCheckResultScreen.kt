@@ -8,11 +8,15 @@ import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,70 +27,105 @@ import coil.compose.AsyncImage
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HealthCheckResultScreen(
-    healthCheckResult: String?,
-    onClose: () -> Unit
+    viewModel: PlantsViewModel,
+    onBack: () -> Unit
 ) {
-    if (healthCheckResult == null) {
-        return
+    val healthCheckResult by viewModel.lastHealthCheckResult.collectAsState()
+    val currentPhoto = viewModel.getCurrentHealthCheckPhoto()
+    val gson = Gson()
+
+    // Cleanup when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearCurrentHealthCheckPhoto()
+        }
     }
 
-        val healthData = Gson().fromJson(healthCheckResult, JsonObject::class.java)
-        val healthAssessment = healthData.getAsJsonObject("health_assessment")
-        
-        // Add null checks
-        val isHealthy = healthAssessment?.get("is_healthy")?.asBoolean ?: false
-        val probability = healthAssessment?.get("is_healthy_probability")?.asDouble ?: 0.0
-        val diseases = healthAssessment?.getAsJsonArray("diseases")?.map { disease ->
-            disease.asJsonObject
-        } ?: emptyList()
-
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Health Check Results") },
-                    navigationIcon = {
-                        IconButton(onClick = onClose) {
-                            Icon(Icons.Default.Close, "Close")
-                        }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Health Check Result") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back")
                     }
-                )
-            }
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-            ) {
-                // Overall Health Status
-                item {
-                    HealthStatusCard(isHealthy, probability)
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            // Photo Section
+            item {
+                currentPhoto?.let { photoUrl ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        AsyncImage(
+                            model = photoUrl,
+                            contentDescription = "Plant photo",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
                 }
+            }
 
-                // Diseases Section
-                if (diseases.isNotEmpty()) {
+            // Health Check Results
+            healthCheckResult?.let { result ->
+                try {
+                    val healthData = gson.fromJson(result, JsonObject::class.java)
+                    val healthAssessment = healthData.getAsJsonObject("health_assessment")
+                    val isHealthy = healthAssessment?.get("is_healthy")?.asBoolean ?: false
+                    val probability = healthAssessment?.get("is_healthy_probability")?.asDouble ?: 0.0
+                    
+                    // Overall Health Status
                     item {
-                        Text(
-                            "Detected Issues",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        HealthStatusCard(isHealthy, probability)
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
-
-                    // Disease Items
-                    items(diseases) { disease ->
-                        DiseaseCard(disease)
-                        Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Disease Section
+                    healthAssessment?.getAsJsonArray("diseases")?.let { diseases ->
+                        if (diseases.size() > 0) {
+                            item {
+                                Text(
+                                    "Detected Issues",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            
+                            items(diseases.size()) { index ->
+                                DiseaseCard(diseases[index].asJsonObject)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    item {
+                        Text("Failed to parse health check result")
                     }
                 }
+            } ?: item {
+                Text("No health check result available")
             }
         }
+    }
 }
 
 data class DiseaseInfo(
