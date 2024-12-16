@@ -222,16 +222,16 @@ class PlantsViewModel(
                     .setNote("Added photo")
                     .build()
 
-                // Add photo using repository
-                val success = repository.addPhotoToPlant("user123", sku, newPhoto)
-                
-                if (success) {
-                    // Only refresh if the update was successful
-                    fetchPlantList()
-                } else {
-                    Log.e(TAG, "Failed to add photo to plant")
-                    // Handle error - maybe show a toast or error state
+                try {
+                    // Try to sync with server
+                    repository.addPhotoToPlant("user123", sku, newPhoto)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to sync photo with server, continuing with local update", e)
                 }
+
+                // Always refresh local data regardless of server sync
+                fetchPlantList()
+                
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to add photo", e)
             }

@@ -271,10 +271,7 @@ class PlantsRepositoryImpl(
 
     override suspend fun addPhotoToPlant(userId: String, sku: String, photo: PlantOuterClass.PhotoEntry): Boolean {
         return try {
-            // Get current plant
-            val plantWithPhotos = plantDao.getPlantBySku(sku) ?: return false
-            
-            // Add photo to local database
+            // Add photo to local database first
             plantDao.insertPhoto(PhotoEntity(
                 plantSku = sku,
                 url = photo.url,
@@ -282,32 +279,32 @@ class PlantsRepositoryImpl(
                 note = photo.note
             ))
             
-            // Get all photos for this plant
-            val allPhotos = plantDao.getPhotosForPlant(sku)
+            Log.d(TAG, "Added photo to local database: ${photo.url}")
             
-            Log.d(TAG, "Photos for plant $sku: ${allPhotos.size}")
-            
-            // Create updated plant with all photos
-            val updatedPlant = plantWithPhotos.toPlant().toBuilder()
-                .setInformation(
-                    plantWithPhotos.plant.toPlant().information.toBuilder().apply {
-                        clearPhotos() // Clear existing photos
-                        allPhotos.forEach { photoEntity ->
-                            Log.d(TAG, "Adding photo: ${photoEntity.url}")
-                            addPhotos(PlantOuterClass.PhotoEntry.newBuilder()
-                                .setUrl(photoEntity.url)
-                                .setTimestamp(photoEntity.timestamp)
-                                .setNote(photoEntity.note)
-                                .build())
-                        }
-                    }.build()
-                )
-                .build()
+            try {
+                // Try to sync with server (can fail without affecting local state)
+                val plantWithPhotos = plantDao.getPlantBySku(sku) ?: return false
+                val updatedPlant = plantWithPhotos.toPlant().toBuilder()
+                    .setInformation(
+                        plantWithPhotos.plant.toPlant().information.toBuilder().apply {
+                            clearPhotos() // Clear existing photos
+                            plantDao.getPhotosForPlant(sku).forEach { photoEntity ->
+                                addPhotos(PlantOuterClass.PhotoEntry.newBuilder()
+                                    .setUrl(photoEntity.url)
+                                    .setTimestamp(photoEntity.timestamp)
+                                    .setNote(photoEntity.note)
+                                    .build())
+                            }
+                        }.build()
+                    )
+                    .build()
                 
-            // Sync with server
-            grpcClient.updatePlant(userId, updatedPlant.identifier, updatedPlant.information)
-            
-            true
+                grpcClient.updatePlant(userId, updatedPlant.identifier, updatedPlant.information)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to sync with server, but photo was saved locally", e)
+            }
+
+            true // Return true since local save succeeded
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add photo to plant", e)
             false
