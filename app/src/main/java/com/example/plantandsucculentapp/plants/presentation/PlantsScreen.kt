@@ -39,6 +39,7 @@ import com.example.plantandsucculentapp.core.presentation.components.LoadingScre
 import com.example.plantandsucculentapp.core.presentation.util.UiState
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import coil.compose.LocalImageLoader
 import com.example.plantandsucculentapp.plants.presentation.components.EmptyPlantsScreen
 
 @Composable
@@ -130,6 +131,8 @@ fun PlantListItem(
     photoUrl: String?,
     onItemClick: () -> Unit
 ) {
+    val imageLoader = LocalImageLoader.current
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -151,6 +154,7 @@ fun PlantListItem(
                 AsyncImage(
                     model = photoUrl,
                     contentDescription = "Plant photo",
+                    imageLoader = imageLoader,
                     modifier = Modifier
                         .size(100.dp)
                         .clip(RoundedCornerShape(12.dp)),

@@ -102,6 +102,9 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
+
+    implementation(libs.coil3.coil.compose)
+    implementation(libs.coil.network.okhttp)
 }
 
 protobuf {

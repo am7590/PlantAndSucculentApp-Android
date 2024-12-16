@@ -40,7 +40,12 @@ val plantsModule = module {
         }
     }
 
-    single { PlantHealthService(context = androidContext()) }
+    single { 
+        PlantHealthService(
+            context = androidContext(),
+            imageLoader = get()
+        ) 
+    }
 
     single<Repository> {
         PlantsRepositoryImpl(
