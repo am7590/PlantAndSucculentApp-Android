@@ -53,6 +53,7 @@ import android.widget.Toast
 import android.net.Uri
 import android.content.Intent
 import android.util.Log
+import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationHelper
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -242,15 +243,39 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                 val sku = backStackEntry.arguments?.getString("sku") ?: return@composable
                 val currentPlant = (plantsViewModel.plantsState.value as? UiState.Success)?.data
                     ?.find { it.identifier.sku == sku } ?: return@composable
-                
-                PlantIdentificationScreen(
-                    viewModel = plantsViewModel,
-                    onSpeciesSelected = { species ->
-                        plantsViewModel.selectedSpecies = species
-                        navController.navigate("identificationDetail/$sku")
-                    },
-                    onBack = { navController.popBackStack() }
-                )
+
+                when (val identificationResult = plantsViewModel.identificationResult.collectAsState().value) {
+                    is UiState.Success -> {
+                        val suggestion = PlantIdentificationHelper.parseIdentificationResult(identificationResult.data)
+                        PlantIdentificationDetailScreen(
+                            suggestion = suggestion,
+                            onConfirm = {
+                                // Update plant with selected species
+                                val updatedInformation = currentPlant.information.toBuilder()
+                                    .setIdentifiedSpeciesName(suggestion.plantName)
+                                    .setLastIdentification(System.currentTimeMillis())
+                                    .build()
+                                
+                                plantsViewModel.updatePlant(
+                                    deviceId,
+                                    currentPlant.identifier,
+                                    updatedInformation
+                                )
+                                navController.popBackStack("plantDetail/$sku", inclusive = false)
+                            },
+                            onDismiss = { navController.popBackStack() }
+                        )
+                    }
+                    is UiState.Loading -> {
+                        LoadingScreen()
+                    }
+                    is UiState.Error -> {
+                        ErrorScreen(
+                            message = identificationResult.message,
+                            onRetry = { plantsViewModel.fetchPlantList() }
+                        )
+                    }
+                }
             }
             composable(
                 route = "identificationDetail/{sku}",

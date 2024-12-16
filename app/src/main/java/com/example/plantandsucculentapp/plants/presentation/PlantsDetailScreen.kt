@@ -115,7 +115,6 @@ fun PlantsDetailScreen(
                     plant = plant,
                     onWaterPlant = onWaterPlant,
                     onHealthCheck = onHealthCheck,
-                    onIdentifySpecies = onIdentifyPlant
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -124,6 +123,21 @@ fun PlantsDetailScreen(
             item {
                 PlantInfoSection(plant)
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            item {
+                Button(
+                    onClick = onIdentifyPlant,
+                    enabled = plant.information.photosList.isNotEmpty(),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Identify Species"
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Identify Species")
+                }
             }
 
             // Photo History Section
@@ -333,7 +347,6 @@ private fun PlantActionsSection(
     plant: PlantOuterClass.Plant,
     onWaterPlant: () -> Unit,
     onHealthCheck: () -> Unit,
-    onIdentifySpecies: () -> Unit,
 ) {
     val canPerformHealthCheck = plant.information.photosList.isNotEmpty() && 
         (plant.information.lastHealthCheck == 0L || 
@@ -360,19 +373,6 @@ private fun PlantActionsSection(
             Icon(Icons.Default.Favorite, null)
             Spacer(Modifier.width(8.dp))
             Text("Health Check")
-        }
-
-        Button(
-            onClick = onIdentifySpecies,
-            enabled = plant.information.photosList.isNotEmpty(),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Identify Species"
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Identify Species")
         }
     }
 }

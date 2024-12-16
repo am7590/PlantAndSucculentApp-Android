@@ -37,9 +37,40 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.plantandsucculentapp.core.presentation.components.ErrorScreen
 import com.example.plantandsucculentapp.core.presentation.util.UiState
+import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
 import com.example.plantandsucculentapp.plants.data.model.PlantSuggestion
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import kotlin.math.roundToInt
+
+class PlantIdentificationHelper {
+    companion object {
+        fun parseIdentificationResult(response: PlantIdentificationResponse): PlantSuggestion {
+            // First check if we have valid suggestions
+            val validSuggestions = response.suggestions.filter { suggestion -> 
+                !suggestion.plantName.isNullOrBlank() && suggestion.plantDetails != null 
+            }
+            
+            when {
+                // If we have valid suggestions, use them regardless of isPlant flag
+                validSuggestions.isNotEmpty() -> {
+                    return validSuggestions[0]
+                }
+                // If API says it's not a plant with high confidence
+                !response.isPlant && response.isPlantProbability < 0.3 -> {
+                    throw IllegalStateException("Image does not appear to be a plant (${(response.isPlantProbability * 100).toInt()}% confidence)")
+                }
+                // If we have suggestions but they're not valid
+                response.suggestions.isNotEmpty() -> {
+                    throw IllegalStateException("Could not determine plant species. Please try with a clearer photo.")
+                }
+                // No suggestions at all
+                else -> {
+                    throw IllegalStateException("No plant species identified. Please try again with a different photo.")
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
