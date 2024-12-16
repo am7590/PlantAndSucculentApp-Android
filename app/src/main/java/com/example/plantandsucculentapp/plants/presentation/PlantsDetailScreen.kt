@@ -1,5 +1,4 @@
 import android.content.Context
-import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -31,10 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,23 +45,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material.icons.filled.Search
-import android.content.Intent
-import android.util.Log
-import android.widget.Toast
-import com.example.plantandsucculentapp.core.presentation.MainActivity
 import java.io.File
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
-import android.content.pm.PackageManager
-import android.provider.MediaStore
-import androidx.activity.ComponentActivity
+import coil.compose.LocalImageLoader
+import androidx.compose.material3.FloatingActionButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +64,6 @@ fun PlantsDetailScreen(
     onIdentifyPlant: () -> Unit,
     onWaterPlant: () -> Unit,
     onHealthCheck: () -> Unit,
-    onAddPhoto: (String) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -102,9 +88,8 @@ fun PlantsDetailScreen(
             item {
                 PlantImageSection(
                     photos = plant.information.photosList,
-                    onAddPhoto = { photoUrl -> 
-                        viewModel.addPhotoToPlant(sku, photoUrl)
-                    }
+                    viewModel = viewModel,
+                    sku = sku
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -129,7 +114,7 @@ fun PlantsDetailScreen(
                 Button(
                     onClick = onIdentifyPlant,
                     enabled = plant.information.photosList.isNotEmpty(),
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -162,39 +147,21 @@ fun PlantsDetailScreen(
 @Composable
 private fun PlantImageSection(
     photos: List<PlantOuterClass.PhotoEntry>,
-    onAddPhoto: (String) -> Unit
+    viewModel: PlantsViewModel,
+    sku: String
 ) {
     val context = LocalContext.current
-    val activity = context as? ComponentActivity
+    val imageLoader = LocalImageLoader.current
+    
+    val pagerState = rememberPagerState(
+        initialPage = 0,
+        pageCount = { photos.size }
+    )
     
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        uri?.let {
-            try {
-                // Take persistable URI permission
-                val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                context.contentResolver.takePersistableUriPermission(uri, takeFlags)
-
-                // Copy to app's internal storage
-                val fileName = "plant_photo_${System.currentTimeMillis()}.jpg"
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    context.openFileOutput(fileName, Context.MODE_PRIVATE).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                val internalPath = context.getFileStreamPath(fileName).absolutePath
-                onAddPhoto(internalPath)
-            } catch (e: Exception) {
-                Log.e("PlantDetailScreen", "Failed to save photo", e)
-                Toast.makeText(
-                    context,
-                    "Failed to save photo. Please try again.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
+        uri?.let { viewModel.addPhotoToPlant(sku, it, context) }
     }
 
     Card(
@@ -207,10 +174,7 @@ private fun PlantImageSection(
                 .height(300.dp)
         ) {
             if (photos.isNotEmpty()) {
-                val pagerState = rememberPagerState(pageCount = { photos.size })
-                
                 Column {
-                    // Photo Pager
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.weight(1f)
@@ -218,17 +182,16 @@ private fun PlantImageSection(
                         val photoUrl = photos[page].url
                         AsyncImage(
                             model = when {
-                                photoUrl.startsWith("/") -> File(photoUrl)
                                 photoUrl.startsWith("file://") -> File(photoUrl.removePrefix("file://"))
                                 else -> photoUrl
                             },
+                            imageLoader = imageLoader,
                             contentDescription = "Plant photo ${page + 1}",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
                     }
                     
-                    // Page Indicator
                     Row(
                         Modifier
                             .height(50.dp)
@@ -267,13 +230,11 @@ private fun PlantImageSection(
                 }
             }
 
-            // Add photo button
+            // Add photo FAB
             FloatingActionButton(
-                onClick = {
+                onClick = { 
                     photoPickerLauncher.launch(
-                        PickVisualMediaRequest(
-                            mediaType = ActivityResultContracts.PickVisualMedia.ImageOnly
-                        )
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 },
                 modifier = Modifier

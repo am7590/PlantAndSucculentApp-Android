@@ -1,12 +1,16 @@
 package com.example.plantandsucculentapp.plants.presentation
 
+import android.content.Context
+import android.net.Uri
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.data.PlantsRepositoryImpl
 import com.example.plantandsucculentapp.plants.data.local.PlantDatabase
 import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
+import com.example.plantandsucculentapp.plants.data.model.PlantSuggestion
 import com.example.plantandsucculentapp.plants.domain.Repository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,11 +18,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import plant.PlantOuterClass
+import java.io.File
+import java.util.*
 
 class PlantsViewModel(
     private val repository: Repository,
     private val database: PlantDatabase
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "PlantsViewModel"
+    }
 
     private val _plantsState = MutableStateFlow<UiState<List<PlantOuterClass.Plant>>>(UiState.Loading)
     val plantsState = _plantsState.asStateFlow()
@@ -29,8 +39,14 @@ class PlantsViewModel(
     private val _identificationResult = MutableStateFlow<UiState<PlantIdentificationResponse>>(UiState.Loading)
     val identificationResult = _identificationResult.asStateFlow()
 
+    private val _identificationResults = mutableStateOf<List<PlantSuggestion>>(emptyList())
+    val identificationResults: List<PlantSuggestion> get() = _identificationResults.value
+
     var selectedSpecies: String? = null
         internal set
+
+    private var isIdentificationInProgress = false
+    private var currentIdentificationSku: String? = null
 
     init {
         fetchPlantList()
@@ -128,25 +144,42 @@ class PlantsViewModel(
         _identificationResult.value = UiState.Loading
     }
 
-    fun addPhotoToPlant(sku: String, photoUrl: String) {
+    fun addPhotoToPlant(sku: String, uri: Uri, context: Context) {
         viewModelScope.launch {
             try {
-                val currentPlant = (plantsState.value as? UiState.Success)?.data
-                    ?.find { it.identifier.sku == sku } ?: return@launch
-
+                // Generate a unique filename
+                val fileName = "plant_${UUID.randomUUID()}.jpg"
+                val file = File(context.filesDir, fileName)
+                
+                // Copy the image data
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                
+                // Create internal URI
+                val internalUri = "file://${file.absolutePath}"
+                
+                // Create photo entry
                 val newPhoto = PlantOuterClass.PhotoEntry.newBuilder()
-                    .setUrl(photoUrl)
+                    .setUrl(internalUri)
                     .setTimestamp(System.currentTimeMillis())
                     .setNote("Added photo")
                     .build()
 
-                val updatedInformation = currentPlant.information.toBuilder()
-                    .addPhotos(newPhoto)
-                    .build()
-
-                updatePlant("user123", currentPlant.identifier, updatedInformation)
+                // Add photo using repository
+                val success = repository.addPhotoToPlant("user123", sku, newPhoto)
+                
+                if (success) {
+                    // Only refresh if the update was successful
+                    fetchPlantList()
+                } else {
+                    Log.e(TAG, "Failed to add photo to plant")
+                    // Handle error - maybe show a toast or error state
+                }
             } catch (e: Exception) {
-                Log.e("PlantsViewModel", "Failed to add photo", e)
+                Log.e(TAG, "Failed to add photo", e)
             }
         }
     }
@@ -172,6 +205,51 @@ class PlantsViewModel(
                 Log.d("PlantsViewModel", "Successfully cleared all data")
             } catch (e: Exception) {
                 Log.e("PlantsViewModel", "Failed to clear data", e)
+            }
+        }
+    }
+
+    fun startPlantIdentification(photoUrl: String, plantSku: String) {
+        if (isIdentificationInProgress) {
+            Log.d("PlantsViewModel", "Plant identification already in progress, skipping request")
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                isIdentificationInProgress = true
+                currentIdentificationSku = plantSku
+                _identificationResults.value = emptyList() // Clear previous results
+                
+                val result = repository.identifyPlant(photoUrl)
+                _identificationResults.value = result.suggestions
+            } catch (e: Exception) {
+                Log.e("PlantsViewModel", "Failed to identify plant", e)
+                _identificationResults.value = emptyList()
+            } finally {
+                isIdentificationInProgress = false
+            }
+        }
+    }
+
+    fun selectIdentifiedPlant(suggestion: PlantSuggestion) {
+        viewModelScope.launch {
+            try {
+                val currentPlant = (plantsState.value as? UiState.Success)?.data
+                    ?.find { it.identifier.sku == currentIdentificationSku } ?: return@launch
+
+                val updatedInformation = currentPlant.information.toBuilder()
+                    .setIdentifiedSpeciesName(suggestion.plantName)
+                    .setLastIdentification(System.currentTimeMillis())
+                    .build()
+
+                updatePlant("user123", currentPlant.identifier, updatedInformation)
+                
+                // Clear results and SKU after successful selection
+                _identificationResults.value = emptyList()
+                currentIdentificationSku = null
+            } catch (e: Exception) {
+                Log.e("PlantsViewModel", "Failed to update plant with identification", e)
             }
         }
     }

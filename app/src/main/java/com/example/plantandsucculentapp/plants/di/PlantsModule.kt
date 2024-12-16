@@ -28,7 +28,7 @@ val plantsModule = module {
         .build()
     }
 
-    single { get<PlantDatabase>().plantDao }
+    single { get<PlantDatabase>().plantDao() }
 
     single<GrpcClientInterface> {
         if (BuildConfig.USE_REAL_SERVER) {

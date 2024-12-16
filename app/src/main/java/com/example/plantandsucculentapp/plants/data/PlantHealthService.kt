@@ -34,18 +34,24 @@ class PlantHealthService(
     suspend fun checkPlantHealth(photoUrl: String): String {
         return withContext(Dispatchers.IO) {
             try {
-                // Get the cached file from Coil
-                val snapshot = imageLoader.diskCache?.get(photoUrl)
-                val cachedFile = snapshot?.data?.toFile()
-                
-                if (cachedFile != null) {
-                    // Use the cached file for health check
-                    val result = performHealthCheck(cachedFile)
-                    snapshot.close()
-                    result
-                } else {
-                    throw Exception("Image not found in cache")
+                // Handle file:// URLs by stripping the prefix
+                val file = when {
+                    photoUrl.startsWith("file://") -> {
+                        File(photoUrl.removePrefix("file://"))
+                    }
+                    else -> {
+                        // Try to get from Coil cache first
+                        val snapshot = imageLoader.diskCache?.get(photoUrl)
+                        snapshot?.data?.toFile() ?: throw Exception("Image not found in cache")
+                    }
                 }
+
+                if (!file.exists()) {
+                    throw Exception("Image file does not exist: $photoUrl")
+                }
+
+                // Use the file for health check
+                performHealthCheck(file)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to perform health check", e)
                 throw e
@@ -54,52 +60,46 @@ class PlantHealthService(
     }
 
     private fun performHealthCheck(file: File): String {
-        // Your existing health check logic here
-        return "Healthy" // Replace with actual implementation
+        val photoBytes = file.readBytes()
+        val base64Image = Base64.encodeToString(photoBytes, Base64.NO_WRAP)
+            
+        val jsonPayload = """
+            {
+                "api_key": "$API_KEY",
+                "images": ["data:image/jpeg;base64,$base64Image"],
+                "modifiers": ["health_only", "similar_images"],
+                "plant_language": "en",
+                "plant_details": ["common_names", "url", "wiki_description", "taxonomy"]
+            }
+        """.trimIndent()
+
+        val request = Request.Builder()
+            .url(PLANT_ID_API_URL)
+            .post(jsonPayload.toRequestBody(jsonMediaType))
+            .build()
+
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("API call failed: ${response.code}")
+            }
+            response.body?.string() ?: throw IOException("Empty response")
+        }
     }
 
     suspend fun identifyPlant(imageUrl: String, skipCache: Boolean = false): String = withContext(Dispatchers.IO) {
         try {
-            // Temporarily disable cache
-            // val cacheKey = "$IDENTIFICATION_CACHE_PREFIX${imageUrl.hashCode()}"
-            // if (!skipCache) {
-            //     val cachedResult = sharedPreferences.getString(cacheKey, null)
-            //     val cacheTimestamp = sharedPreferences.getLong("${cacheKey}_timestamp", 0)
-            //     val cacheAge = System.currentTimeMillis() - cacheTimestamp
-            //     
-            //     if (cachedResult != null && cacheAge < TimeUnit.HOURS.toMillis(1)) {
-            //         Log.d(TAG, "Using cached identification result from ${Date(cacheTimestamp)}")
-            //         return@withContext cachedResult
-            //     }
-            // }
-            
             Log.d(TAG, "Making new identification request for image: $imageUrl")
             
             val photoBytes = when {
-                imageUrl.startsWith("content://") -> {
-                    val uri = Uri.parse(imageUrl)
-                    try {
-                        context.contentResolver.openInputStream(uri)?.use { 
-                            it.readBytes() 
-                        } ?: throw IOException("Failed to open photo URI")
-                    } catch (e: SecurityException) {
-                        // If that fails, try to copy to our internal storage first
-                        val fileName = "temp_${System.currentTimeMillis()}.jpg"
-                        val internalFile = File(context.cacheDir, fileName)
-                        
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            internalFile.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        
-                        internalFile.readBytes().also {
-                            internalFile.delete() // Clean up
-                        }
-                    }
+                imageUrl.startsWith("file://") -> {
+                    File(imageUrl.removePrefix("file://")).readBytes()
                 }
-                imageUrl.startsWith("/") -> File(imageUrl).readBytes()
-                else -> throw IllegalArgumentException("Unsupported image URL format")
+                imageUrl.startsWith("content://") -> {
+                    context.contentResolver.openInputStream(Uri.parse(imageUrl))?.use { 
+                        it.readBytes() 
+                    } ?: throw IOException("Failed to open photo URI")
+                }
+                else -> throw IllegalArgumentException("Unsupported image URL format: $imageUrl")
             }
             
             val base64Image = Base64.encodeToString(photoBytes, Base64.NO_WRAP)
@@ -120,22 +120,10 @@ class PlantHealthService(
                 .addHeader("Content-Type", "application/json")
                 .build()
 
-            val result = client.newCall(request).execute().use { response ->
+            client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw IOException("Unexpected code $response")
                 response.body?.string() ?: throw IOException("Empty response body")
             }
-
-            // Log full response for debugging
-            Log.d(TAG, "Raw API response: $result")
-
-            // Don't cache for now
-            // sharedPreferences.edit()
-            //     .putString(cacheKey, result)
-            //     .putLong("${cacheKey}_timestamp", System.currentTimeMillis())
-            //     .apply()
-            // Log.d(TAG, "Cached new identification result")
-
-            result
         } catch (e: Exception) {
             Log.e(TAG, "Plant identification failed", e)
             throw e

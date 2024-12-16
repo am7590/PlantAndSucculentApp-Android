@@ -20,6 +20,7 @@ import com.example.plantandsucculentapp.plants.data.local.HealthCheckEntity
 import com.example.plantandsucculentapp.plants.data.model.PlantIdentificationResponse
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.example.plantandsucculentapp.plants.data.local.PhotoEntity
 
 class PlantsRepositoryImpl(
     private val grpcClient: GrpcClientInterface,
@@ -43,7 +44,7 @@ class PlantsRepositoryImpl(
         } else {
             val plants = plantDao.getAllPlants().first()
             Log.d(TAG, "Retrieved plants from Room: ${plants.map { 
-                "${it.sku}: history size=${it.healthCheckHistory.size}" 
+                "${it.plant.sku}: photos size=${it.photos.size}" 
             }}")
             plants.map { it.toPlant() }
         }
@@ -54,8 +55,18 @@ class PlantsRepositoryImpl(
             try {
                 val response = grpcClient.addPlant(userId, plant)
                 if (!isMockEnabled) {
-                    // For new plants, we start with empty history
+                    // Store base plant info
                     plantDao.insertPlant(plant.toEntity())
+                    
+                    // Store photos separately
+                    plant.information.photosList.forEach { photo ->
+                        plantDao.insertPhoto(PhotoEntity(
+                            plantSku = plant.identifier.sku,
+                            url = photo.url,
+                            timestamp = photo.timestamp,
+                            note = photo.note
+                        ))
+                    }
                 }
                 response.getOrThrow().status
             } catch (e: UnknownHostException) {
@@ -83,7 +94,7 @@ class PlantsRepositoryImpl(
                     .build()
                     .toEntity()
                     .copy(
-                        healthCheckHistory = existingPlant?.healthCheckHistory ?: emptyList()
+                        healthCheckHistory = existingPlant?.plant?.healthCheckHistory ?: emptyList()
                     )
                 
                 // Store in Room
@@ -134,22 +145,22 @@ class PlantsRepositoryImpl(
 
     override suspend fun getHealthHistory(identifier: PlantOuterClass.PlantIdentifier): PlantOuterClass.HealthCheckInformation {
         return try {
-            val plant = plantDao.getPlantBySku(identifier.sku)
+            val plantWithPhotos = plantDao.getPlantBySku(identifier.sku)
             Log.d(TAG, """
                 Getting health history for ${identifier.sku}:
-                - Plant found: ${plant != null}
-                - History size: ${plant?.healthCheckHistory?.size}
-                - Raw history: ${plant?.healthCheckHistory}
+                - Plant found: ${plantWithPhotos != null}
+                - History size: ${plantWithPhotos?.plant?.healthCheckHistory?.size}
+                - Raw history: ${plantWithPhotos?.plant?.healthCheckHistory}
             """.trimIndent())
 
-            if (plant?.healthCheckHistory?.isNotEmpty() == true) {
-                val latestHealthCheck = plant.healthCheckHistory.maxByOrNull { it.timestamp }!!
+            if (plantWithPhotos?.plant?.healthCheckHistory?.isNotEmpty() == true) {
+                val latestHealthCheck = plantWithPhotos.plant.healthCheckHistory.maxByOrNull { it.timestamp }!!
                 PlantOuterClass.HealthCheckInformation.newBuilder()
                     .setProbability(latestHealthCheck.probability)
                     .setHistoricalProbabilities(
                         PlantOuterClass.HistoricalProbabilities.newBuilder()
                             .addAllProbabilities(
-                                plant.healthCheckHistory.map { healthCheck ->
+                                plantWithPhotos.plant.healthCheckHistory.map { healthCheck ->
                                     PlantOuterClass.Probability.newBuilder()
                                         .setId("health_check_${healthCheck.timestamp}")
                                         .setName("health_check")
@@ -173,10 +184,10 @@ class PlantsRepositoryImpl(
     private suspend fun updatePlantHealthStatus(sku: String, healthResult: String) {
         try {
             // Get existing plant
-            val existingPlant = plantDao.getPlantBySku(sku)
+            val plantWithPhotos = plantDao.getPlantBySku(sku)
             
             // Parse the health result
-            val healthData = Gson().fromJson(healthResult, JsonObject::class.java)
+            val healthData = gson.fromJson(healthResult, JsonObject::class.java)
             val probability = healthData
                 .getAsJsonObject("health_assessment")
                 ?.get("is_healthy_probability")
@@ -190,11 +201,11 @@ class PlantsRepositoryImpl(
             )
 
             // Update plant with new health check
-            existingPlant?.let { plant ->
-                val updatedPlant = plant.copy(
+            plantWithPhotos?.let { plant ->
+                val updatedPlant = plant.plant.copy(
                     lastHealthCheck = System.currentTimeMillis(),
                     lastHealthResult = healthResult,
-                    healthCheckHistory = plant.healthCheckHistory + newHealthCheck
+                    healthCheckHistory = plant.plant.healthCheckHistory + newHealthCheck
                 )
                 plantDao.insertPlant(updatedPlant)
                 
@@ -255,6 +266,51 @@ class PlantsRepositoryImpl(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to identify plant", e)
             throw e
+        }
+    }
+
+    override suspend fun addPhotoToPlant(userId: String, sku: String, photo: PlantOuterClass.PhotoEntry): Boolean {
+        return try {
+            // Get current plant
+            val plantWithPhotos = plantDao.getPlantBySku(sku) ?: return false
+            
+            // Add photo to local database
+            plantDao.insertPhoto(PhotoEntity(
+                plantSku = sku,
+                url = photo.url,
+                timestamp = photo.timestamp,
+                note = photo.note
+            ))
+            
+            // Get all photos for this plant
+            val allPhotos = plantDao.getPhotosForPlant(sku)
+            
+            Log.d(TAG, "Photos for plant $sku: ${allPhotos.size}")
+            
+            // Create updated plant with all photos
+            val updatedPlant = plantWithPhotos.toPlant().toBuilder()
+                .setInformation(
+                    plantWithPhotos.plant.toPlant().information.toBuilder().apply {
+                        clearPhotos() // Clear existing photos
+                        allPhotos.forEach { photoEntity ->
+                            Log.d(TAG, "Adding photo: ${photoEntity.url}")
+                            addPhotos(PlantOuterClass.PhotoEntry.newBuilder()
+                                .setUrl(photoEntity.url)
+                                .setTimestamp(photoEntity.timestamp)
+                                .setNote(photoEntity.note)
+                                .build())
+                        }
+                    }.build()
+                )
+                .build()
+                
+            // Sync with server
+            grpcClient.updatePlant(userId, updatedPlant.identifier, updatedPlant.information)
+            
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add photo to plant", e)
+            false
         }
     }
 }

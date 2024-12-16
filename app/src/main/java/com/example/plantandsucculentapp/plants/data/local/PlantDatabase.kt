@@ -9,12 +9,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [PlantEntity::class],
-    version = 2
+    entities = [PlantEntity::class, PhotoEntity::class],
+    version = 1
 )
 @TypeConverters(Converters::class)
 abstract class PlantDatabase : RoomDatabase() {
-    abstract val plantDao: PlantDao
+    abstract fun plantDao(): PlantDao
 
     companion object {
         const val DATABASE_NAME = "plants_db"

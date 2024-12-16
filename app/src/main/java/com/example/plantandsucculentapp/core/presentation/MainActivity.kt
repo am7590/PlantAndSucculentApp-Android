@@ -1,7 +1,6 @@
 package com.example.plantandsucculentapp.core.presentation
 
 import HealthCheckResultScreen
-import PlantIdentificationDetailScreen
 //import PlantIdentificationScreen
 import PlantsDetailScreen
 import android.os.Build
@@ -10,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -40,7 +38,6 @@ import com.example.plantandsucculentapp.core.presentation.util.UiState
 import com.example.plantandsucculentapp.plants.presentation.NewPlantScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantsViewModel
 import com.example.plantandsucculentapp.plants.trends.TrendsScreen
-import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import plant.PlantOuterClass
 import android.provider.Settings
@@ -48,11 +45,11 @@ import androidx.annotation.RequiresApi
 import android.Manifest
 import android.annotation.SuppressLint
 import androidx.navigation.navArgument
-import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationScreen
 import android.widget.Toast
 import android.net.Uri
 import android.content.Intent
 import android.util.Log
+import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationDetailScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationHelper
 
 class MainActivity : ComponentActivity() {
@@ -174,42 +171,24 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                         if (plant != null) {
                             PlantsDetailScreen(
                                 plant = plant,
+                                sku = sku,
+                                viewModel = plantsViewModel,
+                                onIdentifyPlant = {
+                                    val photoUrl = plant.information.photosList.lastOrNull()?.url
+                                    if (photoUrl != null) {
+                                        plantsViewModel.startPlantIdentification(photoUrl, sku)
+                                        navController.navigate("plantIdentification/${plant.identifier.sku}")
+                                    }
+                                },
                                 onWaterPlant = {
-                                    val updatedPlant = plant.toBuilder()
-                                        .setInformation(
-                                            plant.information.toBuilder()
-                                                .setLastWatered(System.currentTimeMillis())
-                                                .build()
-                                        )
-                                        .build()
-                                    plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
+                                    // Handle water plant
                                 },
                                 onHealthCheck = {
                                     plantsViewModel.performHealthCheck(plant)
-                                    navController.navigate("healthCheckResult")
                                 },
-                                onAddPhoto = { photoUrl ->
-                                    val updatedPlant = plant.toBuilder()
-                                        .setInformation(
-                                            plant.information.toBuilder()
-                                                .addPhotos(
-                                                    PlantOuterClass.PhotoEntry.newBuilder()
-                                                        .setUrl(photoUrl)
-                                                        .setTimestamp(System.currentTimeMillis())
-                                                        .build()
-                                                )
-                                                .build()
-                                        )
-                                        .build()
-                                    plantsViewModel.updatePlant("user123", updatedPlant.identifier, updatedPlant.information)
-                                },
-                                onIdentifyPlant = {
-                                    plantsViewModel.identifyPlant(plant)
-                                    navController.navigate("plantIdentification/${plant.identifier.sku}")
-                                },
-                                sku = plant.identifier.sku,
-                                viewModel = plantsViewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = {
+                                    navController.popBackStack()
+                                }
                             )
                         }
                     }
@@ -249,22 +228,22 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                         val suggestion = PlantIdentificationHelper.parseIdentificationResult(identificationResult.data)
                         PlantIdentificationDetailScreen(
                             suggestion = suggestion,
-                            onConfirm = {
-                                // Update plant with selected species
-                                val updatedInformation = currentPlant.information.toBuilder()
-                                    .setIdentifiedSpeciesName(suggestion.plantName)
-                                    .setLastIdentification(System.currentTimeMillis())
-                                    .build()
-                                
-                                plantsViewModel.updatePlant(
-                                    deviceId,
-                                    currentPlant.identifier,
-                                    updatedInformation
-                                )
-                                navController.popBackStack("plantDetail/$sku", inclusive = false)
-                            },
-                            onDismiss = { navController.popBackStack() }
-                        )
+                            onBackClick = {
+                                navController.popBackStack()
+                            }) {
+
+                            val updatedInformation = currentPlant.information.toBuilder()
+                                .setIdentifiedSpeciesName(suggestion.plantName)
+                                .setLastIdentification(System.currentTimeMillis())
+                                .build()
+
+                            plantsViewModel.updatePlant(
+                                deviceId,
+                                currentPlant.identifier,
+                                updatedInformation
+                            )
+                            navController.popBackStack("plantDetail/$sku", inclusive = false)
+                        }
                     }
                     is UiState.Loading -> {
                         LoadingScreen()
@@ -289,28 +268,28 @@ fun PlantApp(plantsViewModel: PlantsViewModel, deviceId: String) {
                     val suggestion = identificationResult.data.suggestions.find { 
                         it.plantName == selectedSpecies 
                     } ?: return@composable
-                    
+
                     PlantIdentificationDetailScreen(
                         suggestion = suggestion,
-                        onConfirm = {
-                            // Update plant with selected species
-                            val currentPlant = (plantsViewModel.plantsState.value as? UiState.Success)?.data
-                                ?.find { it.identifier.sku == sku } ?: return@PlantIdentificationDetailScreen
-                            
-                            val updatedInformation = currentPlant.information.toBuilder()
-                                .setIdentifiedSpeciesName(suggestion.plantName)
-                                .setLastIdentification(System.currentTimeMillis())
-                                .build()
-                            
-                            plantsViewModel.updatePlant(
-                                "user123",
-                                currentPlant.identifier,
-                                updatedInformation
-                            )
-                            navController.popBackStack("plantDetail/$sku", inclusive = false)
-                        },
-                        onDismiss = { navController.popBackStack() }
-                    )
+                        onBackClick = {
+                            navController.popBackStack()
+                        }) {
+                        val currentPlant = (plantsViewModel.plantsState.value as? UiState.Success)?.data
+                            ?.find { it.identifier.sku == sku } ?: return@PlantIdentificationDetailScreen
+
+                        val updatedInformation = currentPlant.information.toBuilder()
+                            .setIdentifiedSpeciesName(suggestion.plantName)
+                            .setLastIdentification(System.currentTimeMillis())
+                            .build()
+
+                        plantsViewModel.updatePlant(
+                            "user123",
+                            currentPlant.identifier,
+                            updatedInformation
+                        )
+                        navController.popBackStack("plantDetail/$sku", inclusive = false)
+
+                    }
                 }
             }
         }

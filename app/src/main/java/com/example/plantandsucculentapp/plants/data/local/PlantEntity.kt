@@ -2,30 +2,49 @@ package com.example.plantandsucculentapp.plants.data.local
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Ignore
+import androidx.room.TypeConverters
+import androidx.room.ForeignKey
+import androidx.room.Index
 import plant.PlantOuterClass
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.util.*
 
 @Entity(tableName = "plants")
 data class PlantEntity(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0L,
+    @PrimaryKey
     val sku: String,
     val deviceIdentifier: String,
     val name: String,
     val lastWatered: Long,
     val lastHealthCheck: Long = 0,
-    val lastIdentification: Long?,
-    val identifiedSpeciesName: String?,
-    val photos: List<PhotoEntity>,
-    val lastHealthResult: String? = null,
+    val lastHealthResult: String = "",
+    @TypeConverters(Converters::class)
     val healthCheckHistory: List<HealthCheckEntity> = emptyList()
-)
+) {
+    @Ignore
+    var photos: List<PhotoEntity> = emptyList()
+}
 
+@Entity(
+    tableName = "plant_photos",
+    foreignKeys = [
+        ForeignKey(
+            entity = PlantEntity::class,
+            parentColumns = ["sku"],
+            childColumns = ["plantSku"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("plantSku")]
+)
 data class PhotoEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val plantSku: String,
     val url: String,
     val timestamp: Long,
-    val note: String?
+    val note: String
 )
 
 data class HealthCheckEntity(
@@ -47,11 +66,7 @@ fun PlantEntity.toPlant(): PlantOuterClass.Plant {
                 .setLastWatered(lastWatered)
                 .setLastHealthCheck(lastHealthCheck)
                 .apply {
-                    lastIdentification?.let { setLastIdentification(it) }
-                    identifiedSpeciesName?.let { setIdentifiedSpeciesName(it) }
-                    if (!lastHealthResult.isNullOrEmpty()) {
-                        setLastHealthResult(lastHealthResult)
-                    }
+                    lastHealthResult?.let { setLastHealthResult(it) }
                     photos.forEach { photo ->
                         addPhotos(
                             PlantOuterClass.PhotoEntry.newBuilder()
@@ -82,21 +97,11 @@ fun PlantEntity.toPlant(): PlantOuterClass.Plant {
 
 fun PlantOuterClass.Plant.toEntity(): PlantEntity {
     return PlantEntity(
-        id = 0L,
         sku = identifier.sku,
         deviceIdentifier = identifier.deviceIdentifier,
         name = information.name,
         lastWatered = information.lastWatered,
         lastHealthCheck = information.lastHealthCheck,
-        lastIdentification = information.lastIdentification,
-        identifiedSpeciesName = information.identifiedSpeciesName,
-        photos = information.photosList.map { photo ->
-            PhotoEntity(
-                url = photo.url,
-                timestamp = photo.timestamp,
-                note = if (photo.hasNote()) photo.note else null
-            )
-        },
         lastHealthResult = information.lastHealthResult,
         healthCheckHistory = if (information.hasHistoricalHealthChecks()) {
             information.historicalHealthChecks.probabilitiesList.map { prob ->
@@ -110,4 +115,31 @@ fun PlantOuterClass.Plant.toEntity(): PlantEntity {
             emptyList()
         }
     )
+}
+
+fun PlantWithPhotos.toPlant(): PlantOuterClass.Plant {
+    return PlantOuterClass.Plant.newBuilder()
+        .setIdentifier(
+            PlantOuterClass.PlantIdentifier.newBuilder()
+                .setSku(plant.sku)
+                .setDeviceIdentifier(plant.deviceIdentifier)
+        )
+        .setInformation(
+            PlantOuterClass.PlantInformation.newBuilder()
+                .setName(plant.name)
+                .setLastWatered(plant.lastWatered)
+                .setLastHealthCheck(plant.lastHealthCheck)
+                .apply {
+                    photos.forEach { photo ->
+                        addPhotos(
+                            PlantOuterClass.PhotoEntry.newBuilder()
+                                .setUrl(photo.url)
+                                .setTimestamp(photo.timestamp)
+                                .setNote(photo.note)
+                                .build()
+                        )
+                    }
+                }
+        )
+        .build()
 } 
