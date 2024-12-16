@@ -250,7 +250,7 @@ private fun PlantImageSection(
                 }
             }
 
-            // Add photo FAB
+            // Add photo
             FloatingActionButton(
                 onClick = { 
                     photoPickerLauncher.launch(
@@ -264,27 +264,6 @@ private fun PlantImageSection(
                 Icon(Icons.Default.Add, "Add photo")
             }
         }
-    }
-}
-
-private fun saveImageToInternalStorage(context: Context, uri: Uri): String? {
-    return try {
-        // Create a unique filename using timestamp
-        val filename = "plant_photo_${System.currentTimeMillis()}.jpg"
-
-        // Get the input stream from the URI
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            // Save to internal storage
-            context.openFileOutput(filename, Context.MODE_PRIVATE).use { output ->
-                input.copyTo(output)
-            }
-        }
-
-        // Return the full path to the saved file
-        context.getFileStreamPath(filename).absolutePath
-    } catch (e: Exception) {
-        e.printStackTrace()
-        null
     }
 }
 
@@ -302,10 +281,6 @@ private fun PlantInfoSection(plant: PlantOuterClass.Plant) {
             InfoRow(
                 label = "Name",
                 value = plant.information.name
-            )
-            InfoRow(
-                label = "Species",
-                value = plant.information.identifiedSpeciesName
             )
             InfoRow(
                 label = "Last Watered",

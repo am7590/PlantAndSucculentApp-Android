@@ -21,7 +21,7 @@ import coil.ImageLoader
 private const val TAG = "PlantHealthService"
 private const val PLANT_ID_API_URL = "https://api.plant.id/v2/health_assessment"
 private const val API_KEY = "S6VUgIM03MvELLMGtMQBEpVuBvtaG0b0UOGoma3iT2oO2OuMYH"
-private const val IDENTIFICATION_CACHE_PREFIX = "plant_identification_"
+private const val IDENTIFICATION_CACHE_PREFIX = "plant_identification_" // no-op for now
 
 class PlantHealthService(
     private val context: Context,
@@ -34,13 +34,11 @@ class PlantHealthService(
     suspend fun checkPlantHealth(photoUrl: String): String {
         return withContext(Dispatchers.IO) {
             try {
-                // Handle file:// URLs by stripping the prefix
                 val file = when {
                     photoUrl.startsWith("file://") -> {
                         File(photoUrl.removePrefix("file://"))
                     }
                     else -> {
-                        // Try to get from Coil cache first
                         val snapshot = imageLoader.diskCache?.get(photoUrl)
                         snapshot?.data?.toFile() ?: throw Exception("Image not found in cache")
                     }
@@ -50,7 +48,6 @@ class PlantHealthService(
                     throw Exception("Image file does not exist: $photoUrl")
                 }
 
-                // Use the file for health check
                 performHealthCheck(file)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to perform health check", e)
@@ -133,10 +130,8 @@ class PlantHealthService(
     suspend fun clearCache() {
         withContext(Dispatchers.IO) {
             try {
-                // Clear shared preferences cache
                 sharedPreferences.edit().clear().apply()
                 
-                // Clear cached files from internal storage
                 context.filesDir.listFiles()?.forEach { file ->
                     if (file.name.startsWith("plant_photo_") || 
                         file.name.startsWith("temp_")) {
@@ -144,7 +139,6 @@ class PlantHealthService(
                     }
                 }
                 
-                // Clear cache directory
                 context.cacheDir.listFiles()?.forEach { file ->
                     file.delete()
                 }

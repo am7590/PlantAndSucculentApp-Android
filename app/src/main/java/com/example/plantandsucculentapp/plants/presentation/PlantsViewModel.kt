@@ -53,7 +53,6 @@ class PlantsViewModel(
     private var _shouldNavigateToHealthCheck = false
     val shouldNavigateToHealthCheck get() = _shouldNavigateToHealthCheck
 
-    // Add a state to hold the current photo being processed
     private var _currentHealthCheckPhoto: String? = null
 
     init {
@@ -89,7 +88,7 @@ class PlantsViewModel(
                 repository.updatePlant(userId, identifier, information)
                 fetchPlantList()
             } catch (e: Exception) {
-                // Handle error if needed
+                // TODO
             }
         }
     }
@@ -103,10 +102,8 @@ class PlantsViewModel(
                     return@launch
                 }
                 
-                // Store the current photo URL before processing
                 _currentHealthCheckPhoto = latestPhoto.url
                 
-                // Perform health check
                 val result = repository.performHealthCheck(
                     userId = "user123", 
                     identifier = plant.identifier,
@@ -115,7 +112,6 @@ class PlantsViewModel(
                 _lastHealthCheckResult.value = result
                 _shouldNavigateToHealthCheck = true
                 
-                // Update plant's health check status in database
                 updatePlantHealthStatus(plant.identifier.sku, result)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to perform health check", e)
@@ -126,12 +122,10 @@ class PlantsViewModel(
 
     private suspend fun updatePlantHealthStatus(sku: String, healthCheckResult: String) {
         try {
-            // Get current plant
             val currentPlant = (plantsState.value as? UiState.Success)?.data
                 ?.find { it.identifier.sku == sku }
                 ?: return
 
-            // Parse health data
             val healthData = Gson().fromJson(healthCheckResult, JsonObject::class.java)
             val probability = healthData
                 .getAsJsonObject("health_assessment")
@@ -139,13 +133,11 @@ class PlantsViewModel(
                 ?.asDouble
                 ?: return
 
-            // Update plant information with new health check data
             val updatedInformation = currentPlant.information.toBuilder()
                 .setLastHealthCheck(System.currentTimeMillis())
                 .setLastHealthResult(healthCheckResult)
                 .build()
 
-            // Update plant in database
             updatePlant(
                 userId = "user123",
                 identifier = currentPlant.identifier,
@@ -156,28 +148,10 @@ class PlantsViewModel(
         }
     }
 
-    // Add method to get current health check photo
     fun getCurrentHealthCheckPhoto(): String? = _currentHealthCheckPhoto
 
-    // Clear the current photo after health check is complete
     fun clearCurrentHealthCheckPhoto() {
         _currentHealthCheckPhoto = null
-    }
-
-    private fun shouldAllowHealthCheck(plant: PlantOuterClass.Plant): Boolean {
-        val lastHealthCheck = if (true) {//if (plant.information.hasLastHealthCheck()) {
-            plant.information.lastHealthCheck
-        } else {
-            0L
-        }
-        
-        // Allow health check if:
-        // 1. Never checked before (lastHealthCheck = 0)
-        // 2. Latest photo is newer than last health check
-        val latestPhotoTimestamp = plant.information.photosList
-            .maxOfOrNull { it.timestamp } ?: 0L
-            
-        return lastHealthCheck == 0L || latestPhotoTimestamp > lastHealthCheck
     }
 
     fun identifyPlant(plant: PlantOuterClass.Plant) {
@@ -193,29 +167,20 @@ class PlantsViewModel(
         }
     }
 
-    fun retryIdentification() {
-        // Reset state to trigger recomposition
-        _identificationResult.value = UiState.Loading
-    }
-
     fun addPhotoToPlant(sku: String, uri: Uri, context: Context) {
         viewModelScope.launch {
             try {
-                // Generate a unique filename
                 val fileName = "plant_${UUID.randomUUID()}.jpg"
                 val file = File(context.filesDir, fileName)
                 
-                // Copy the image data
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     file.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
                 
-                // Create internal URI
                 val internalUri = "file://${file.absolutePath}"
                 
-                // Create photo entry
                 val newPhoto = PlantOuterClass.PhotoEntry.newBuilder()
                     .setUrl(internalUri)
                     .setTimestamp(System.currentTimeMillis())
@@ -223,42 +188,15 @@ class PlantsViewModel(
                     .build()
 
                 try {
-                    // Try to sync with server
                     repository.addPhotoToPlant("user123", sku, newPhoto)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to sync photo with server, continuing with local update", e)
                 }
 
-                // Always refresh local data regardless of server sync
                 fetchPlantList()
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to add photo", e)
-            }
-        }
-    }
-
-    fun clearAllData() {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Clear database
-                database.clearAllTables()
-                
-                // Clear identification cache and files
-                (repository as? PlantsRepositoryImpl)?.let { repo ->
-                    repo.healthService.clearCache()
-                }
-                
-                // Reset states
-                _identificationResult.value = UiState.Loading
-                _lastHealthCheckResult.value = null
-                
-                // Refresh data
-                fetchPlantList()
-                
-                Log.d("PlantsViewModel", "Successfully cleared all data")
-            } catch (e: Exception) {
-                Log.e("PlantsViewModel", "Failed to clear data", e)
             }
         }
     }
@@ -277,28 +215,6 @@ class PlantsViewModel(
                 _identificationResult.value = UiState.Error(e.message ?: "Failed to identify plant")
             } finally {
                 isIdentificationInProgress = false
-            }
-        }
-    }
-
-    fun selectIdentifiedPlant(suggestion: PlantSuggestion) {
-        viewModelScope.launch {
-            try {
-                val currentPlant = (plantsState.value as? UiState.Success)?.data
-                    ?.find { it.identifier.sku == currentIdentificationSku } ?: return@launch
-
-                val updatedInformation = currentPlant.information.toBuilder()
-                    .setIdentifiedSpeciesName(suggestion.plantName)
-                    .setLastIdentification(System.currentTimeMillis())
-                    .build()
-
-                updatePlant("user123", currentPlant.identifier, updatedInformation)
-                
-                // Clear results and SKU after successful selection
-                _identificationResults.value = emptyList()
-                currentIdentificationSku = null
-            } catch (e: Exception) {
-                Log.e("PlantsViewModel", "Failed to update plant with identification", e)
             }
         }
     }

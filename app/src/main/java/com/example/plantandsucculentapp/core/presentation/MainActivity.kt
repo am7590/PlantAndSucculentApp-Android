@@ -45,9 +45,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import androidx.navigation.navArgument
 import android.widget.Toast
-import android.net.Uri
-import android.content.Intent
-import android.util.Log
 import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationDetailScreen
 import com.example.plantandsucculentapp.plants.presentation.PlantIdentificationHelper
 
@@ -73,23 +70,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun takePersistablePermission(uri: Uri) {
-        try {
-            val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            contentResolver.takePersistableUriPermission(uri, takeFlags)
-            Log.d(TAG, "Successfully took persistable permission for URI: $uri")
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Failed to take persistable permission for URI: $uri", e)
-        }
-    }
-
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Request permissions based on Android version
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissionLauncher.launch(
                 arrayOf(
@@ -295,4 +280,3 @@ fun BottomAppBar(navController: NavController, tabs: List<TabItem>) {
 }
 
 data class TabItem(val title: String, val icon: ImageVector, val route: String)
-

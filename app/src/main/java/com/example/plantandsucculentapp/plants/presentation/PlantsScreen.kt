@@ -41,6 +41,9 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.LocalImageLoader
 import com.example.plantandsucculentapp.plants.presentation.components.EmptyPlantsScreen
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun PlantsScreen(
@@ -181,11 +184,17 @@ fun PlantListItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Last Watered: $lastWatered days ago",
+                    text = "Last Watered: ${formatTimestamp(lastWatered)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
+}
+
+fun formatTimestamp(timestamp: Long): String {
+    val date = Date(timestamp)
+    val format = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
+    return format.format(date)
 }

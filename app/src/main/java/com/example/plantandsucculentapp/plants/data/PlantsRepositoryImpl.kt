@@ -55,10 +55,8 @@ class PlantsRepositoryImpl(
             try {
                 val response = grpcClient.addPlant(userId, plant)
                 if (!isMockEnabled) {
-                    // Store base plant info
                     plantDao.insertPlant(plant.toEntity())
                     
-                    // Store photos separately
                     plant.information.photosList.forEach { photo ->
                         plantDao.insertPhoto(PhotoEntity(
                             plantSku = plant.identifier.sku,
@@ -84,10 +82,8 @@ class PlantsRepositoryImpl(
         try {
             val response = grpcClient.updatePlant(userId, identifier, information)
             if (!isMockEnabled) {
-                // Get existing plant to preserve health check history
                 val existingPlant = plantDao.getPlantBySku(identifier.sku)
                 
-                // Create new plant entity with preserved history
                 val updatedPlant = PlantOuterClass.Plant.newBuilder()
                     .setIdentifier(identifier)
                     .setInformation(information)
@@ -97,7 +93,6 @@ class PlantsRepositoryImpl(
                         healthCheckHistory = existingPlant?.plant?.healthCheckHistory ?: emptyList()
                     )
                 
-                // Store in Room
                 plantDao.insertPlant(updatedPlant)
             }
             response.getOrThrow().status
@@ -116,7 +111,6 @@ class PlantsRepositoryImpl(
         val cacheKey = "$cacheKeyPrefix${identifier.sku}_${latestPhotoUrl.hashCode()}"
         
         try {
-            // Check cache first before making API call
             sharedPreferences.getString(cacheKey, null)?.let { cached ->
                 Log.d(TAG, "Returning cached health check result: $cached")
                 updatePlantHealthStatus(identifier.sku, cached)
@@ -127,13 +121,11 @@ class PlantsRepositoryImpl(
             val result = healthService.checkPlantHealth(latestPhotoUrl)
             Log.d(TAG, "Got health check result: $result")
             
-            // Cache the result
             sharedPreferences.edit()
                 .putString(cacheKey, result)
                 .apply()
             Log.d(TAG, "Cached new health check result")
             
-            // Update plant information
             updatePlantHealthStatus(identifier.sku, result)
             
             result
@@ -183,24 +175,20 @@ class PlantsRepositoryImpl(
 
     private suspend fun updatePlantHealthStatus(sku: String, healthResult: String) {
         try {
-            // Get existing plant
             val plantWithPhotos = plantDao.getPlantBySku(sku)
             
-            // Parse the health result
             val healthData = gson.fromJson(healthResult, JsonObject::class.java)
             val probability = healthData
                 .getAsJsonObject("health_assessment")
                 ?.get("is_healthy_probability")
                 ?.asDouble ?: 0.0
 
-            // Create new health check entry
             val newHealthCheck = HealthCheckEntity(
                 timestamp = System.currentTimeMillis(),
                 result = healthResult,
                 probability = probability
             )
 
-            // Update plant with new health check
             plantWithPhotos?.let { plant ->
                 val updatedPlant = plant.plant.copy(
                     lastHealthCheck = System.currentTimeMillis(),
@@ -218,7 +206,6 @@ class PlantsRepositoryImpl(
                 """.trimIndent())
             }
 
-            // Create health check data for server
             val healthCheckData = PlantOuterClass.HealthCheckInformation.newBuilder()
                 .setProbability(probability)
                 .setHistoricalProbabilities(
@@ -235,7 +222,6 @@ class PlantsRepositoryImpl(
                 )
                 .build()
 
-            // Save to server
             val response = grpcClient.saveHealthCheckData(
                 PlantOuterClass.HealthCheckDataRequest.newBuilder()
                     .setIdentifier(PlantOuterClass.PlantIdentifier.newBuilder().setSku(sku).build())
@@ -271,7 +257,6 @@ class PlantsRepositoryImpl(
 
     override suspend fun addPhotoToPlant(userId: String, sku: String, photo: PlantOuterClass.PhotoEntry): Boolean {
         return try {
-            // Add photo to local database first
             plantDao.insertPhoto(PhotoEntity(
                 plantSku = sku,
                 url = photo.url,
@@ -282,12 +267,11 @@ class PlantsRepositoryImpl(
             Log.d(TAG, "Added photo to local database: ${photo.url}")
             
             try {
-                // Try to sync with server (can fail without affecting local state)
                 val plantWithPhotos = plantDao.getPlantBySku(sku) ?: return false
                 val updatedPlant = plantWithPhotos.toPlant().toBuilder()
                     .setInformation(
                         plantWithPhotos.plant.toPlant().information.toBuilder().apply {
-                            clearPhotos() // Clear existing photos
+                            clearPhotos()
                             plantDao.getPhotosForPlant(sku).forEach { photoEntity ->
                                 addPhotos(PlantOuterClass.PhotoEntry.newBuilder()
                                     .setUrl(photoEntity.url)

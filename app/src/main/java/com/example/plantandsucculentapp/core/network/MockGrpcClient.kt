@@ -77,7 +77,6 @@ class MockGrpcClient : GrpcClientInterface {
         identifier: PlantOuterClass.PlantIdentifier,
         healthCheckData: String
     ): Result<PlantOuterClass.HealthCheckDataResponse> {
-        // Simulate API response
         val mockResponse = """
             {
                 "id": "mock_health_check",

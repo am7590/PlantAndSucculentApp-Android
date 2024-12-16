@@ -39,15 +39,5 @@ abstract class PlantDatabase : RoomDatabase() {
                 )
             }
         }
-
-        fun create(context: Context): PlantDatabase {
-            return Room.databaseBuilder(
-                context,
-                PlantDatabase::class.java,
-                "plant_database"
-            )
-            .addMigrations(MIGRATION_1_2)
-            .build()
-        }
     }
 } 

@@ -6,20 +6,6 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
 class Converters {
-//    @TypeConverter
-//    fun fromPhotoList(photos: List<PhotoEntity>): String {
-//        return gson.toJson(photos)
-//    }
-//
-//    @TypeConverter
-//    fun toPhotoList(value: String): List<PhotoEntity> {
-//        val type = object : TypeToken<List<PhotoEntity>>() {}.type
-//        return try {
-//            gson.fromJson(value, type)
-//        } catch (e: Exception) {
-//            emptyList()
-//        }
-//    }
 
     @TypeConverter
     fun fromHealthCheckList(value: List<HealthCheckEntity>): String {

@@ -131,13 +131,11 @@ fun TrendsContent(plants: List<PlantOuterClass.Plant>, repository: Repository) {
                 end = 16.dp
             )
     ) {
-        // Overall Health Summary
         item {
             OverallHealthCard(plants, repository)
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Individual Plant Health Cards
         item {
             Text(
                 "Plant Health",
@@ -155,10 +153,9 @@ fun TrendsContent(plants: List<PlantOuterClass.Plant>, repository: Repository) {
 
 @Composable
 private fun OverallHealthCard(plants: List<PlantOuterClass.Plant>, repository: Repository) {
-    val minValidTimestamp = 1672531200000 // Jan 1, 2023 in milliseconds
+    val minValidTimestamp = 1672531200000 // TODO Jan 1, 2023 (default for now - should this be different?)
     var averageHealth by remember { mutableStateOf(0.0) }
     
-    // Calculate average health when the card is first shown
     LaunchedEffect(plants) {
         val healthScores = plants
             .filter { it.information.lastHealthCheck > minValidTimestamp }
@@ -242,7 +239,6 @@ private fun PlantHealthCard(
     var healthHistory by remember { mutableStateOf<List<PlantOuterClass.Probability>>(emptyList()) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    // Refresh when plant data changes or after health check
     LaunchedEffect(plant.identifier.sku, plant.information.lastHealthCheck) {
         try {
             val history = repository.getHealthHistory(plant.identifier)
@@ -317,7 +313,6 @@ private fun PlantHealthCard(
                 }
             }
 
-            // Health History Graph
             if (healthHistory.size > 1) {
                 Log.d("TrendsScreen", """
                     Showing graph section:
@@ -346,7 +341,6 @@ private fun PlantHealthCard(
                 """.trimIndent())
             }
 
-            // Show error if any
             errorMessage?.let {
                 Text(
                     text = it,
@@ -368,18 +362,16 @@ private fun HealthHistoryGraph(
         history.sortedBy { it.date }
     }
     
-    // Calculate time range and normalize points
     val points = remember(sortedHistory) {
         val firstTimestamp = sortedHistory.first().date
         val lastTimestamp = sortedHistory.last().date
         val timeRange = lastTimestamp - firstTimestamp
         
-        // Use percentage of total width for x-coordinates (0 to 100)
         sortedHistory.map { probability ->
             val xPosition = if (timeRange > 0) {
                 ((probability.date - firstTimestamp).toFloat() / timeRange.toFloat()) * 100f
             } else {
-                50f // Center single point
+                50f
             }
             Pair(xPosition, (probability.probability * 100).toFloat())
         }.also { points ->
@@ -392,13 +384,12 @@ private fun HealthHistoryGraph(
         val height = size.height
         val padding = 16.dp.toPx()
         
-        // Fixed scale: x from 0-100, y from 0-100
         val xMin = 0f
         val xMax = 100f
         val yMin = 0f
         val yMax = 100f
 
-        // Calculate scale factors
+        // auto scale based on number of points in graph
         val xScale = (width - 2 * padding) / (xMax - xMin)
         val yScale = (height - 2 * padding) / (yMax - yMin)
 
@@ -409,7 +400,6 @@ private fun HealthHistoryGraph(
             - Y range: $yMin to $yMax (scale: $yScale)
         """.trimIndent())
         
-        // Draw axes
         drawLine(
             color = Color.Gray,
             start = Offset(padding, height - padding),
@@ -424,7 +414,6 @@ private fun HealthHistoryGraph(
             strokeWidth = 1.dp.toPx()
         )
 
-        // Draw line graph
         if (points.size > 1) {
             val path = Path()
             points.forEachIndexed { index, point ->
@@ -437,7 +426,6 @@ private fun HealthHistoryGraph(
                     path.lineTo(x, y)
                 }
                 
-                // Draw points
                 drawCircle(
                     color = Color.Blue,
                     radius = 4.dp.toPx(),
@@ -445,7 +433,6 @@ private fun HealthHistoryGraph(
                 )
             }
 
-            // Draw line connecting points
             drawPath(
                 path = path,
                 color = Color.Blue,
@@ -463,7 +450,6 @@ private suspend fun calculateHealthPercentage(
     repository: Repository
 ): Double {
     try {
-        // Get health history from server using repository
         val healthHistory = repository.getHealthHistory(plant.identifier)
             .historicalProbabilities
             .probabilitiesList
@@ -493,46 +479,4 @@ private fun calculateFallbackHealth(plant: PlantOuterClass.Plant): Double {
 
     Log.d("TrendsScreen", "Using fallback calculation: $healthScore")
     return healthScore
-}
-
-private fun formatDate(timestamp: Long): String {
-    val date = Date(timestamp)
-    val format = SimpleDateFormat("MMM dd", Locale.getDefault())
-    return format.format(date)
-}
-
-@Composable
-fun EmptyTrendsScreen() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Menu,
-            contentDescription = null,
-            modifier = Modifier.size(120.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "No Trends Yet",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Add some plants and track their health to see trends",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 32.dp)
-        )
-    }
 }

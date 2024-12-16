@@ -14,40 +14,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.plantandsucculentapp.plants.data.model.PlantSuggestion
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun PlantIdentificationResultsScreen(
-    suggestions: List<PlantSuggestion>,
-    onSuggestionClick: (PlantSuggestion) -> Unit,
-    onBackClick: () -> Unit
-) {
-    Scaffold(
-        topBar = {
-            SmallTopAppBar(
-                title = { Text("Identification Results") },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            items(suggestions) { suggestion ->
-                PlantSuggestionItem(
-                    suggestion = suggestion,
-                    onClick = { onSuggestionClick(suggestion) }
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun PlantSuggestionItem(
     suggestion: PlantSuggestion,

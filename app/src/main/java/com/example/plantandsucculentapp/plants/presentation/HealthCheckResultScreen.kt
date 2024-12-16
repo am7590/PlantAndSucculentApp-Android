@@ -39,8 +39,8 @@ fun HealthCheckResultScreen(
     val currentPhoto = viewModel.getCurrentHealthCheckPhoto()
     val gson = Gson()
 
-    // Cleanup when leaving screen
     DisposableEffect(Unit) {
+        // onDispose = onDisappear
         onDispose {
             viewModel.clearCurrentHealthCheckPhoto()
         }
@@ -92,7 +92,7 @@ fun HealthCheckResultScreen(
                     val isHealthy = healthAssessment?.get("is_healthy")?.asBoolean ?: false
                     val probability = healthAssessment?.get("is_healthy_probability")?.asDouble ?: 0.0
                     
-                    // Overall Health Status
+                    // Health Status
                     item {
                         HealthStatusCard(isHealthy, probability)
                         Spacer(modifier = Modifier.height(16.dp))
@@ -128,10 +128,6 @@ fun HealthCheckResultScreen(
     }
 }
 
-data class DiseaseInfo(
-    val name: String,
-    val probability: Double
-)
 
 @Composable
 private fun HealthStatusCard(isHealthy: Boolean, probability: Double) {
@@ -202,22 +198,6 @@ private fun HealthStatusCard(isHealthy: Boolean, probability: Double) {
                 text = if (isHealthy) "Plant is Healthy" else "Issues Detected",
                 style = MaterialTheme.typography.titleLarge
             )
-
-//            items(diseases) { disease ->
-//
-//            }
-//            // Show diseases summary if any
-//            diseases.getAsJsonArray("diseases")?.let { diseases ->
-//                val diseaseCount = diseases.size()
-//                if (diseaseCount > 0) {
-//                    Spacer(modifier = Modifier.height(8.dp))
-//                    Text(
-//                        text = "$diseaseCount potential issues found",
-//                        style = MaterialTheme.typography.bodyMedium,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant
-//                    )
-//                }
-//            }
         }
     }
 }
@@ -265,52 +245,3 @@ fun DiseaseCard(disease: JsonObject) {
         }
     }
 }
-
-@Composable
-private fun SimilarImagesGrid(images: JsonArray) {
-    LazyHorizontalGrid(
-        rows = GridCells.Fixed(2),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(200.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        items(images.size()) { index ->
-            val image = images[index].asJsonObject
-            SimilarImageCard(image)
-        }
-    }
-}
-
-@Composable
-private fun SimilarImageCard(image: JsonObject) {
-    Card(
-        modifier = Modifier
-            .padding(4.dp)
-            .size(160.dp)
-    ) {
-        Box {
-            AsyncImage(
-                model = image.get("url")?.asString,
-                contentDescription = "Similar case",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .padding(4.dp)
-            ) {
-                Text(
-                    text = "Similarity: ${(image.get("similarity")?.asDouble?.times(100))?.toInt()}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White
-                )
-            }
-        }
-    }
-} 
